@@ -382,9 +382,9 @@ class MobileChat::CaptainToolkit
     card
   end
 
-  # The widget renders the flag from this url, and the write-time validator only accepts an https
-  # one: a product whose flag is missing or on another scheme is written without the key rather
-  # than as nil or an empty string, which would fail the message write. Reads the product's own
+  # The widget renders the flag from this url, and the write-time validator accepts only an https
+  # one (an empty string is allowed there as "no image", but nil is not): a product whose flag is
+  # missing or on another scheme is written without the key, not as nil. Reads the product's own
   # flag, never `image`, which also carries the banner.
   def country_image(product)
     flag = product[:country_image].to_s
