@@ -666,7 +666,7 @@
 ## ------ Mobile chat (mobile app customer service) ------ ##
 - name: MOBILE_CHAT_INBOX_ID
   display_title: 'Mobile Chat Inbox ID'
-  description: 'Chatwoot inbox that carries mobile app customer service sessions. Must be a Website inbox; determines website_token and contact identity.'
+  description: 'Chatwoot inbox that carries mobile app customer service sessions. Must be a Website inbox; determines website_token and contact identity. Its Allowed domains must include the mobile web app origin, or the chat iframe renders blank.'
   value:
   locked: false
 - name: NOVYRO_API_BASE_URL

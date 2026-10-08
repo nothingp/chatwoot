@@ -32,6 +32,8 @@ RSpec.describe MobileChat::ContactCredentials do
   it 'does not write when the token is unchanged' do
     contact.update!(custom_attributes: { 'app_token' => 'same-token' })
 
-    expect { described_class.sync(contact, 'same-token') }.not_to(change { contact.reload.updated_at })
+    expect(contact).not_to receive(:update!)
+
+    described_class.sync(contact, 'same-token')
   end
 end

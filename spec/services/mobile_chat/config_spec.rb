@@ -45,11 +45,32 @@ RSpec.describe MobileChat::Config do
           .to raise_error(CustomExceptions::MobileChat::NotConfigured, /FRONTEND_URL/)
       end
     end
+
+    it 'strips a trailing slash so the origin matches the browser canonical origin' do
+      with_modified_env(FRONTEND_URL: 'https://chat.example.com/') do
+        expect(described_class.frontend_url).to eq('https://chat.example.com')
+      end
+    end
   end
 
   describe '.novyro_user_info_url' do
     it 'joins the base url with the configured path' do
       expect(described_class.novyro_user_info_url).to eq('https://api.example.com/api/v2/esim/user/info')
+    end
+
+    it 'joins a base url with a trailing slash without doubling the separator' do
+      InstallationConfig.where(name: 'NOVYRO_API_BASE_URL').delete_all
+      create(:installation_config, name: 'NOVYRO_API_BASE_URL', value: 'https://api.example.com/api/')
+
+      expect(described_class.novyro_user_info_url).to eq('https://api.example.com/api/v2/esim/user/info')
+    end
+
+    it 'raises with the config name when the base url is not absolute' do
+      InstallationConfig.where(name: 'NOVYRO_API_BASE_URL').delete_all
+      create(:installation_config, name: 'NOVYRO_API_BASE_URL', value: 'api.example.com/api')
+
+      expect { described_class.novyro_user_info_url }
+        .to raise_error(CustomExceptions::MobileChat::NotConfigured, /NOVYRO_API_BASE_URL/)
     end
   end
 

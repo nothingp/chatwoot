@@ -4,11 +4,11 @@ class MobileChatController < ActionController::Base
   # Renders nothing itself: it only builds the widget token and hands the browser over to
   # the stock widget, which is why neither widgets/show.html.erb nor the widget app change.
   def show
-    session = MobileChat::SessionStore.read(params[:session])
-    return render_expired if session.blank?
+    chat_session = MobileChat::SessionStore.read(params[:session])
+    return render_expired if chat_session.blank?
 
-    inbox = ::Inbox.find_by(id: session['inbox_id'])
-    contact_inbox = ::ContactInbox.find_by(id: session['contact_inbox_id'])
+    inbox = ::Inbox.find_by(id: chat_session['inbox_id'])
+    contact_inbox = ::ContactInbox.find_by(id: chat_session['contact_inbox_id'])
     return render_expired if inbox.blank? || contact_inbox.blank?
 
     redirect_to widget_path(

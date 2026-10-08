@@ -6,13 +6,32 @@ module MobileChat::Config
       raise(CustomExceptions::MobileChat::NotConfigured, 'MOBILE_CHAT_INBOX_ID')
   end
 
+  # A trailing slash is not cosmetic here: the frontend compares this origin against the
+  # browser's canonical URL origin with strict string equality, so 'https://host/' would fail
+  # the comparison and surface as "customer service unavailable" on a correct deployment.
   def self.frontend_url
-    ENV.fetch('FRONTEND_URL', nil).presence ||
-      raise(CustomExceptions::MobileChat::NotConfigured, 'FRONTEND_URL')
+    configured = ENV.fetch('FRONTEND_URL', nil).presence ||
+                 raise(CustomExceptions::MobileChat::NotConfigured, 'FRONTEND_URL')
+
+    configured.chomp('/')
   end
 
+  # A malformed base yields a URL SafeFetch rejects, which NovyroClient rescues into nil, which
+  # silently downgrades every member to an anonymous guest. Raise instead.
   def self.novyro_user_info_url
-    "#{value('NOVYRO_API_BASE_URL')}#{value('NOVYRO_USER_INFO_PATH')}"
+    base = value('NOVYRO_API_BASE_URL').chomp('/')
+    url = "#{base}/#{value('NOVYRO_USER_INFO_PATH').delete_prefix('/')}"
+
+    return url if absolute_http_url?(url)
+
+    raise(CustomExceptions::MobileChat::NotConfigured, 'NOVYRO_API_BASE_URL')
+  end
+
+  def self.absolute_http_url?(url)
+    uri = URI.parse(url)
+    uri.is_a?(URI::HTTP) && uri.host.present?
+  rescue URI::InvalidURIError
+    false
   end
 
   def self.novyro_headers

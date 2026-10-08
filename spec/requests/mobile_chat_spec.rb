@@ -5,6 +5,40 @@ RSpec.describe 'Mobile chat handoff', type: :request do
   let(:inbox) { create(:inbox, account: account) }
   let(:contact) { create(:contact, account: account) }
   let(:contact_inbox) { create(:contact_inbox, contact: contact, inbox: inbox) }
+  let(:installation_id) { '3f2504e0-4f89-41d3-9a0c-0305e82c3301' }
+  let(:anonymous_profile_id) { '9c858901-8a57-4791-81fe-4c455b099bc9' }
+  let(:frontend_url) { 'https://chat.example.com' }
+  let(:guest_identifier) { "guest_#{installation_id}_#{anonymous_profile_id}" }
+
+  before do
+    create(:installation_config, name: 'MOBILE_CHAT_INBOX_ID', value: inbox.id)
+    create(:installation_config, name: 'NOVYRO_API_BASE_URL', value: 'https://api.example.com/api')
+    create(:installation_config, name: 'NOVYRO_USER_INFO_PATH', value: '/v2/esim/user/info')
+    create(:installation_config, name: 'NOVYRO_API_KEY', value: 'service-key')
+    create(:installation_config, name: 'NOVYRO_SITE_ID', value: '10000')
+
+    allow(Resolv).to receive(:getaddresses).and_call_original
+    allow(Resolv).to receive(:getaddresses).with('api.example.com').and_return(['93.184.216.34'])
+  end
+
+  it 'carries the guest identity from the session POST through to the widget' do
+    payload = { installationId: installation_id, anonymousProfileId: anonymous_profile_id }
+
+    with_modified_env(FRONTEND_URL: frontend_url) do
+      post '/public/api/v1/mobile_chat/session', params: payload, as: :json
+    end
+
+    expect(response).to have_http_status(:ok)
+    chat_url = URI.parse(response.parsed_body['chatUrl'])
+
+    get chat_url.path, params: { session: URI.decode_www_form(chat_url.query).to_h['session'] }
+    get response.location
+
+    expect(response).to have_http_status(:ok)
+    expect(Contact.last.identifier).to eq(guest_identifier)
+    expect(Contact.count).to eq(1)
+    expect(ContactInbox.count).to eq(1)
+  end
 
   it 'redirects to the widget with a conversation token for the stored contact inbox' do
     session_id = MobileChat::SessionStore.create(contact_inbox: contact_inbox, inbox: inbox)

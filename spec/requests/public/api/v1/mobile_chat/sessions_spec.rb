@@ -84,6 +84,7 @@ RSpec.describe 'Public mobile chat session API', type: :request do
     end
 
     expect(Contact.last.identifier).to eq(guest_identifier)
+    expect(ContactInbox.last.hmac_verified).to be(false)
   end
 
   it 'identifies a verified member and stores the app token' do
@@ -101,6 +102,7 @@ RSpec.describe 'Public mobile chat session API', type: :request do
     expect(Contact.last.identifier).to eq('member_1001')
     expect(Contact.last.name).to eq('Zhang San')
     expect(Contact.last.custom_attributes['app_token']).to eq('member-token')
+    expect(ContactInbox.last.hmac_verified).to be(true)
   end
 
   it 'refreshes the app token when a member returns with a new one' do
@@ -130,6 +132,7 @@ RSpec.describe 'Public mobile chat session API', type: :request do
     expect(response).to have_http_status(:ok)
     expect(Contact.last.identifier).to eq(guest_identifier)
     expect(Contact.last.custom_attributes).not_to have_key('app_token')
+    expect(ContactInbox.last.hmac_verified).to be(false)
   end
 
   it 'falls back to a guest session when the business API times out' do
@@ -141,6 +144,7 @@ RSpec.describe 'Public mobile chat session API', type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(Contact.last.identifier).to eq(guest_identifier)
+    expect(ContactInbox.last.hmac_verified).to be(false)
   end
 
   it 'rejects a malformed installation id without creating a contact' do

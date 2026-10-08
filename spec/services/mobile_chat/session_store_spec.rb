@@ -29,6 +29,13 @@ RSpec.describe MobileChat::SessionStore do
       )
     end
 
+    it 'keeps the session readable more than once' do
+      session_id = described_class.create(contact_inbox: contact_inbox, inbox: inbox)
+      first_read = described_class.read(session_id)
+
+      expect(described_class.read(session_id)).to eq(first_read)
+    end
+
     it 'returns nil for an unknown session' do
       expect(described_class.read(SecureRandom.uuid)).to be_nil
     end

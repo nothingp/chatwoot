@@ -63,6 +63,7 @@ RSpec.describe MobileChat::IdentityResolver do
         token: token, installation_id: installation_id, anonymous_profile_id: anonymous_profile_id
       ).perform
 
+      expect(identity.identifier).to eq('member_1001')
       expect(identity.name).to be_nil
       expect(identity.email).to be_nil
     end

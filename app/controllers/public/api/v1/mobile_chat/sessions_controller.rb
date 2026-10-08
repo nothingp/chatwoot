@@ -12,7 +12,7 @@ class Public::Api::V1::MobileChat::SessionsController < PublicController
       inbox: inbox,
       contact_attributes: identity.contact_attributes,
       source_id: identity.identifier,
-      hmac_verified: true
+      hmac_verified: identity.token.present?
     ).perform
 
     MobileChat::ContactCredentials.sync(contact_inbox.contact, identity.token)
