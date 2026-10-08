@@ -40,11 +40,13 @@ RSpec.describe MobileChat::SessionStore do
 
   describe '.expires_at' do
     it 'returns a millisecond timestamp inside the 20 minute window' do
-      now = Time.current.to_i * 1000
+      before_call = Time.current
+      expires_at = described_class.expires_at
+      after_call = Time.current
 
-      expect(described_class.expires_at).to be_a(Integer)
-      expect(described_class.expires_at).to be > now + 1_000
-      expect(described_class.expires_at).to be <= now + (20 * 60 * 1000)
+      expect(expires_at).to be_a(Integer)
+      expect(expires_at).to be > (before_call.to_i * 1000) + 1_000
+      expect(expires_at).to be <= (after_call.to_i + (20 * 60)) * 1000
     end
   end
 end
