@@ -123,6 +123,8 @@ facts 缺失时 App 会退化成用正则从 `title + description + action label
 
 **服务端对账**（本次选择"无状态拉取复核"）：`create_purchase_action` 拿到 `product_id` 后自己调 `PRODUCT_DETAILS_PATH`，要求 `sku_id` 出现在返回的 `skus` 里；**卡片的流量/有效期/价格全部取自这次上游返回**，不采用模型给的任何数字。sku 不存在 → `{ ok: false, error: ... }`，模型照现有约定（不报具体套餐）回答；不发卡。
 
+**`PRODUCT_DETAILS_PATH` 的实际形状（2026-10-08 线上复核补记）**：上面那句"要求 `sku_id` 出现在返回的 `skus` 里"是照着搜索结果的产品形状写的，**详情接口根本没有 `skus` 键**。它返回两个桶：`standard_skus`（条目带 `sku_id` / `data_size_gb` / `billing_period_days` / `price`，另有 `data_plan_type`、`fake_price` 等我们不发出去的字段）与 `unlimited_skus`（条目**没有** `data_size_gb`/`mb`，也**没有** unlimited 标志 —— 桶名本身就是信号）。日本产品 13 实测 `standard_skus` 11 条 + `unlimited_skus` 30 条 = 41 个 SKU，另有 `unlimited_customizable_sku_features`（本次为空）与 `regional_products`（产品摘要，不是 SKU）。落地时由 `product_skus` 把两个桶拍平：无限桶逐条补 `data_size_is_unlimited: true` 再过 `present_sku`（否则流量事实会空掉或读成 "0 MB"）；搜索结果的产品仍走扁平 `skus`，两条形状都要认。`present_product` 的 `MAX_ITEMS` 上限只约束进 prompt 的那份列表，`purchase_actions` 的对账**不过上限**——否则 41 个 SKU 里第 21 个以后会被误判成"不属于该产品"，这正是 2026-10-08 复核实到的线上故障。
+
 **顺序即主次**：`items` 按 `sku_ids` 的顺序排，第一张是主卡（badge 取 `copy.primary`、description 取模型给的 `reason`、CTA 取模型给的 `label`），其余取 `copy.alternative` / `copy.description` / `copy.cta`。
 
 > 与 ai-bridge 的差别：那边是 `supportContextStore` 把本会话的目录结果落库（10 分钟 TTL、最多 3 条），`createVerifiedPurchaseAction` 只接受本会话出现过的 product+sku。本次不复制这套状态：**不存在会失败、数字不可伪造**这两条已经拿到；剩下没管住的是"这个 SKU 是不是真的回应当前问题"（相关性问题），交给 prompt。

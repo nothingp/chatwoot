@@ -203,7 +203,8 @@ RSpec.describe MobileChat::CaptainToolkit do
         body: {
           code: 1,
           data: {
-            all_products: { '13' => { name: 'Japan', country_code: 'JP', min_sku_price: { 'USD' => '9.90' } } },
+            all_products: { '13' => { name: 'Japan', country_code: 'JP', min_sku_price: { 'USD' => '9.90' },
+                                      skus: [{ id: 13_055, data_size_gb: '5', billing_period_days: 7, price: { 'USD' => '9.90' } }] } },
             country_products: ['13'],
             regional_products: ['27']
           }
@@ -215,6 +216,9 @@ RSpec.describe MobileChat::CaptainToolkit do
       expect(result[:ok]).to be(true)
       expect(result[:products].first[:product_id]).to eq('13')
       expect(result[:products].first[:name]).to eq('Japan')
+      # Search products carry a flat `skus` array, not the details endpoint's buckets.
+      expect(result[:products].first[:skus].first[:sku_id]).to eq(13_055)
+      expect(result[:products].first[:skus].first[:data_size_value]).to eq('5')
       expect(result[:country_product_ids]).to eq(['13'])
       expect(result[:regional_product_ids]).to eq(['27'])
     end
@@ -235,6 +239,9 @@ RSpec.describe MobileChat::CaptainToolkit do
       with_modified_env(FRONTEND_URL: 'https://app.example.com') { example.run }
     end
 
+    # The details endpoint does not answer with a flat `skus` array: the same product comes back in
+    # a `standard_skus` and an `unlimited_skus` bucket, and the unlimited entries carry neither a
+    # size nor a flag. Captured from the live endpoint for product 13 (Japan).
     before do
       stub_request(:get, product_details_url)
         .with(query: { product_id: '13' }, headers: { 'lang' => 'zh_CN', 'currency' => 'USD' })
@@ -247,14 +254,19 @@ RSpec.describe MobileChat::CaptainToolkit do
               name: '日本',
               country_code: 'JP',
               country_image: 'https://cdn/JP.svg',
-              skus: [
-                { id: 13_055, data_size_gb: '10', billing_period_days: 7, price: { 'USD' => '16.99' } },
-                { id: 13_056, data_size_gb: '0', data_size_is_unlimited: true, billing_period_days: 7, price: { 'USD' => '35.99' } },
-                { id: 13_057, data_size_gb: '3', billing_period_days: 7, price: { 'USD' => '5.99' } },
-                { id: 13_058, data_size_gb: '3', billing_period_days: 7, price: { 'USD' => '5.99' } },
-                { id: 13_059, data_size_gb: '3', billing_period_days: 7, price: { 'USD' => '5.99' } },
-                { id: 13_060, data_size_gb: '3', billing_period_days: 7, price: { 'USD' => '5.99' } }
-              ]
+              standard_skus: [
+                { sku_id: 165, data_size_gb: '5', billing_period_days: 7, price: { 'USD' => '9.99' } },
+                { sku_id: 13_055, data_size_gb: '10', billing_period_days: 7, price: { 'USD' => '16.99' } },
+                { sku_id: 13_057, data_size_gb: '3', billing_period_days: 7, price: { 'USD' => '5.99' } },
+                { sku_id: 13_058, data_size_gb: '3', billing_period_days: 7, price: { 'USD' => '5.99' } },
+                { sku_id: 13_059, data_size_gb: '3', billing_period_days: 7, price: { 'USD' => '5.99' } },
+                { sku_id: 13_060, data_size_gb: '3', billing_period_days: 7, price: { 'USD' => '5.99' } }
+              ],
+              unlimited_skus: [
+                { sku_id: 13_056, billing_period_days: 7, price: { 'USD' => '35.99' } }
+              ],
+              unlimited_customizable_sku_features: [],
+              regional_products: [{ product_id: 27, product_name: 'Asia' }]
             }
           }.to_json
         )
@@ -347,12 +359,60 @@ RSpec.describe MobileChat::CaptainToolkit do
     it 'refuses a sku that fills no fact at all' do
       stub_request(:get, product_details_url)
         .with(query: { product_id: '13' })
-        .to_return(status: 200, body: { code: 1, data: { product_id: 13, name: '日本', skus: [{ id: 13_055 }] } }.to_json)
+        .to_return(status: 200, body: { code: 1, data: { product_id: 13, name: '日本', standard_skus: [{ sku_id: 13_055 }] } }.to_json)
 
       result = toolkit.purchase_actions(params.merge('sku_ids' => ['13055']))
 
       expect(result[:ok]).to be(false)
       expect(result[:error]).to be_present
+    end
+
+    it 'resolves a sku past the prompt list cap against every sku upstream sent' do
+      # The prompt list is capped at MAX_ITEMS, but reconciliation must not be: the live product
+      # answered with 41 skus, and a chosen sku past position 20 used to read as "not part of that
+      # product". An empty unlimited bucket has to keep the standard one authoritative.
+      stub_request(:get, product_details_url)
+        .with(query: { product_id: '13' })
+        .to_return(
+          status: 200,
+          body: {
+            code: 1,
+            data: {
+              product_id: 13, name: '日本',
+              standard_skus: (1..25).map do |n|
+                { sku_id: 1000 + n, data_size_gb: n.to_s, billing_period_days: 7, price: { 'USD' => '1.00' } }
+              end,
+              unlimited_skus: []
+            }
+          }.to_json
+        )
+
+      result = toolkit.purchase_actions(params.merge('sku_ids' => %w[1025]))
+
+      expect(result[:ok]).to be(true)
+      expect(result[:cards].first[:actions].first[:uri]).to include('sku_id=1025')
+    end
+
+    it 'still builds cards from a product that answers with the flat skus array' do
+      # The search endpoint's products carry `skus` directly; only the details endpoint splits them
+      # into buckets, so the flat shape has to keep resolving.
+      stub_request(:get, product_details_url)
+        .with(query: { product_id: '13' })
+        .to_return(
+          status: 200,
+          body: {
+            code: 1,
+            data: {
+              product_id: 13, name: '日本',
+              skus: [{ id: 13_055, data_size_gb: '10', billing_period_days: 7, price: { 'USD' => '16.99' } }]
+            }
+          }.to_json
+        )
+
+      result = toolkit.purchase_actions(params.merge('sku_ids' => ['13055']))
+
+      expect(result[:ok]).to be(true)
+      expect(result[:cards].first[:facts].first).to eq(icon: 'wifi', label: '流量', value: '10 GB')
     end
 
     it 'refuses a product with no name to put on the card' do
@@ -364,7 +424,7 @@ RSpec.describe MobileChat::CaptainToolkit do
             code: 1,
             data: {
               product_id: 13, name: '',
-              skus: [{ id: 13_055, data_size_gb: '10', billing_period_days: 7, price: { 'USD' => '16.99' } }]
+              standard_skus: [{ sku_id: 13_055, data_size_gb: '10', billing_period_days: 7, price: { 'USD' => '16.99' } }]
             }
           }.to_json
         )

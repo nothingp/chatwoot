@@ -141,8 +141,12 @@ class MobileChat::CaptainToolkit
     response = fetch_catalog_json(PRODUCT_DETAILS_PATH, query: { product_id: product_id })
     return response if response[:ok] == false
 
-    product = present_product(response.dig(:data, 'product') || response[:data], product_id)
-    skus = selected_skus(product, sku_ids)
+    data = response.dig(:data, 'product') || response[:data]
+    product = present_product(data, product_id)
+    # Uncapped on purpose: the details endpoint answers this product with 11 standard + 30
+    # unlimited skus, and the capped list present_product hands the prompt would resolve a chosen
+    # sku past position 20 as "not part of that product".
+    skus = selected_skus(product_skus(data), sku_ids)
     card_error = purchase_card_error(product, skus)
     return { ok: false, error: card_error } if card_error
 
@@ -293,8 +297,26 @@ class MobileChat::CaptainToolkit
       country_name: value(product, :country_url_name, :countryUrlName),
       image: value(product, :country_image, :countryImage, :background_image, :backgroundImage),
       from_price: value(product, :min_sku_price, :minSkuPrice),
-      skus: Array(value(product, :skus)).first(MAX_ITEMS).map { |sku| present_sku(sku) }
+      skus: product_skus(product, limit: MAX_ITEMS)
     }.compact
+  end
+
+  # The details endpoint does not answer with a flat `skus` array. It splits the catalogue into a
+  # `standard_skus` bucket and an `unlimited_skus` bucket, and the unlimited entries carry neither a
+  # size nor a flag: the bucket is the only signal, so inject the flag before presenting. The search
+  # endpoint's products still use the flat array, so accept both. `limit` is for the prompt;
+  # reconciliation has to see every sku.
+  def product_skus(raw, limit: nil)
+    product = hash(raw)
+    standard = value(product, :standard_skus, :standardSkus)
+    unlimited = value(product, :unlimited_skus, :unlimitedSkus)
+    skus = if standard.blank? && unlimited.blank?
+             Array(value(product, :skus))
+           else
+             Array(standard) + Array(unlimited).map { |sku| hash(sku).merge(data_size_is_unlimited: true) }
+           end
+    skus = skus.first(limit) if limit
+    skus.map { |sku| present_sku(sku) }
   end
 
   def present_sku(raw)
@@ -374,8 +396,8 @@ class MobileChat::CaptainToolkit
 
   # The response is the product's own sku list, so an id the model invented or that belongs to a
   # different product simply is not found.
-  def selected_skus(product, sku_ids)
-    sku_ids.map { |id| Array(product[:skus]).find { |sku| sku[:sku_id].to_s == id } }
+  def selected_skus(skus, sku_ids)
+    sku_ids.map { |id| skus.find { |sku| sku[:sku_id].to_s == id } }
   end
 
   def purchase_facts(sku, copy)
