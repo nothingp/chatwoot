@@ -16,7 +16,10 @@ class Captain::Tools::CreatePurchaseActionTool < Captain::Tools::MobileChatTool
     return result[:error] if result[:ok] == false
     return result.to_json unless post_cards(tool_context, result[:cards])
 
-    "Posted #{result[:cards].size} plan cards to the customer. Their buttons carry the purchase " \
-      'action, so refer to the cards instead of repeating the prices in your reply.'
+    # The cards are written before the reply is, so they sit above it: saying "see below" is a
+    # wording the customer can see is wrong. The scenario instruction says the same thing.
+    "Posted #{result[:cards].size} plan cards to the customer, above this reply. Their buttons " \
+      'carry the purchase action, so refer to the cards as already shown instead of repeating the ' \
+      'prices, and never write "see below".'
   end
 end
