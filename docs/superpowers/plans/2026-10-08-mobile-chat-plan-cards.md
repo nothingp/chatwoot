@@ -1146,7 +1146,7 @@ git commit -m "feat(mobile-chat): post plan cards from a create_purchase_action 
 ### Task 5: 契约对照与实例验收
 
 **Files:**
-- Test: `spec/services/mobile_chat/plan_card_contract_spec.rb`（新增）
+- Test: `spec/services/mobile_chat/content_attribute_validator_plan_card_contract_spec.rb`（新增）
 
 **Interfaces:**
 - Consumes: Task 2 的校验器 + Task 3 的 `purchase_actions`
@@ -1197,7 +1197,7 @@ end
 - [ ] **Step 2: 静态检查（本机可跑）**
 
 ```bash
-ruby -c spec/services/mobile_chat/plan_card_contract_spec.rb
+ruby -c spec/services/mobile_chat/content_attribute_validator_plan_card_contract_spec.rb
 ```
 
 Expected: `Syntax OK`
@@ -1214,7 +1214,7 @@ Expected: 全过
 - [ ] **Step 4: Commit**
 
 ```bash
-git add spec/services/mobile_chat/plan_card_contract_spec.rb
+git add spec/services/mobile_chat/content_attribute_validator_plan_card_contract_spec.rb
 git commit -m "test(mobile-chat): pin the plan card contract to the app's sample"
 ```
 
