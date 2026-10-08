@@ -39,3 +39,28 @@
   title: 'Handoff to Human'
   description: 'Hand off the conversation to a human agent'
   icon: 'user-switch'
+
+- id: list_orders
+  title: 'List Orders'
+  description: 'List the signed-in customer''s eSIM orders'
+  icon: 'note-add'
+
+- id: get_order_details
+  title: 'Get Order Details'
+  description: 'Read one order of the signed-in customer'
+  icon: 'search'
+
+- id: recommend_plans
+  title: 'Recommend Plans'
+  description: 'Recommend eSIM plans for a destination and trip length'
+  icon: 'checkmark'
+
+- id: search_products
+  title: 'Search Products'
+  description: 'Search the eSIM catalogue by keyword'
+  icon: 'search'
+
+- id: get_product_details
+  title: 'Get Product Details'
+  description: 'Read live catalogue details for one product'
+  icon: 'tag'

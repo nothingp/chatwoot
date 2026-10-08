@@ -1,14 +1,14 @@
-# Business methods behind the Captain custom tools.
+# Business methods behind the Captain tools.
 #
 # Everything that couples a Chatwoot conversation to Novyro for tool calls lives in this one
 # file: resolving the customer's credentials off the conversation, calling Novyro, and shaping
-# the response for an LLM. The controller on top of it only authenticates the caller and
-# dispatches by tool slug.
+# the response for an LLM. Each Captain::Tools::*Tool class is a thin adapter that resolves the
+# conversation from the tool context and calls the matching method here.
 #
 # These methods never raise on upstream failures. The caller is an LLM tool call, so every
 # failure becomes a structured `{ ok: false, error: ... }` the model can read back to the
 # customer. Missing *configuration* is the one exception: it raises NotConfigured, which the
-# controller renders as a 500, because it is a deployment bug rather than a customer problem.
+# tool call surfaces as an error, because it is a deployment bug rather than a customer problem.
 class MobileChat::CaptainToolkit
   # Novyro's production host reports success as code 1 (see MobileChat::NovyroClient).
   SUCCESS_CODE = MobileChat::NovyroClient::SUCCESS_CODE
@@ -43,18 +43,6 @@ class MobileChat::CaptainToolkit
 
   def initialize(conversation)
     @conversation = conversation
-  end
-
-  # params is the model-supplied argument hash; its keys are not trusted.
-  def call(tool_slug, params)
-    case tool_slug.to_s
-    when 'list_orders' then list_orders
-    when 'get_order_details' then get_order_details(params)
-    when 'recommend_plans' then recommend_plans(params)
-    when 'search_products' then search_products(params)
-    when 'get_product_details' then get_product_details(params)
-    else { ok: false, error: "Unknown tool: #{tool_slug}" }
-    end
   end
 
   # --- Orders: these read the customer's own account, so their app token is required ---

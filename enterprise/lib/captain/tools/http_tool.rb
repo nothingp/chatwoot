@@ -35,15 +35,11 @@ class Captain::Tools::HttpTool < Captain::Tools::BasePublicTool
   # 1MB of text ≈ 250K tokens, which exceeds most LLM context windows
   MAX_RESPONSE_SIZE = 1.megabyte
 
-  # Internal tool endpoints live on this host, so they get an exception to the https rule.
-  LOOPBACK_HOSTS = %w[127.0.0.1 localhost ::1].freeze
-
   # Route through SafeFetch so custom tool requests share the app's centralized HTTP
   # fetching (resolution, timeouts, response size limits, and redirect handling).
   def execute_http_request(url, body, tool_context)
     # Templates can change the URL when rendered, so the final URL is checked before any credentials are sent
-    uri = URI.parse(url)
-    raise ArgumentError, 'Custom tool requests must use HTTPS' unless uri.scheme == 'https' || internal_url?(uri)
+    raise ArgumentError, 'Custom tool requests must use HTTPS' unless URI.parse(url).scheme == 'https'
 
     json_body = body unless @custom_tool.http_method == 'GET'
     auth_headers = @custom_tool.build_auth_headers
@@ -57,21 +53,9 @@ class Captain::Tools::HttpTool < Captain::Tools::BasePublicTool
       sensitive_headers: auth_headers.keys + @custom_tool.headers.keys,
       http_basic_authentication: @custom_tool.build_basic_auth_credentials,
       max_bytes: MAX_RESPONSE_SIZE,
-      validate_content_type: false,
-      allowed_private_network_origin: internal_url?(uri) ? origin_of(uri) : nil
+      validate_content_type: false
     ) { |result| response_body = result.tempfile.read }
     response_body
-  end
-
-  # A tool may call the internal tool endpoints on this host, which are neither https nor publicly
-  # routable. Only that exact origin is excused from the https rule and from the SSRF
-  # private-network block; every other destination is validated exactly as before.
-  def internal_url?(uri)
-    LOOPBACK_HOSTS.include?(uri.host.to_s)
-  end
-
-  def origin_of(uri)
-    "#{uri.scheme}://#{uri.host}:#{uri.port}"
   end
 
   def request_headers(tool_context, json_body, auth_headers)

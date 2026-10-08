@@ -200,12 +200,4 @@ RSpec.describe MobileChat::CaptainToolkit do
     end
   end
 
-  describe '#call' do
-    it 'reports an unknown tool slug' do
-      result = toolkit.call('nope', {})
-
-      expect(result[:ok]).to be(false)
-      expect(result[:error]).to include('Unknown tool')
-    end
-  end
 end
