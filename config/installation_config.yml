@@ -662,3 +662,37 @@
   value: 'https://us.cloud.langfuse.com'
   locked: false
 ## ---- End of LLM Observability ---- ##
+
+## ------ Mobile chat (mobile app customer service) ------ ##
+- name: MOBILE_CHAT_INBOX_ID
+  display_title: 'Mobile Chat Inbox ID'
+  description: 'Chatwoot inbox that carries mobile app customer service sessions. Must be a Website inbox; determines website_token and contact identity.'
+  value:
+  locked: false
+- name: NOVYRO_API_BASE_URL
+  display_title: 'Novyro API Base URL'
+  description: 'Base URL of the Novyro app API, including the /api prefix, e.g. https://api.example.com/api'
+  value:
+  locked: false
+- name: NOVYRO_API_KEY
+  display_title: 'Novyro API Key'
+  description: 'Service-level x-api-key sent with Novyro app API requests.'
+  value:
+  locked: false
+  type: secret
+- name: NOVYRO_SITE_ID
+  display_title: 'Novyro Site ID'
+  description: 'site-id header sent with Novyro app API requests.'
+  value:
+  locked: false
+- name: NOVYRO_USER_INFO_PATH
+  display_title: 'Novyro User Info Path'
+  description: 'Path that verifies an app member token. Default: /v2/esim/user/info'
+  value: '/v2/esim/user/info'
+  locked: false
+- name: NOVYRO_USER_ORDERS_PATH
+  display_title: 'Novyro User Orders Path'
+  description: 'User orders path, used by later phases. Default: /v2/esim/user/orders'
+  value: '/v2/esim/user/orders'
+  locked: false
+## ------ End of mobile chat ------ ##
