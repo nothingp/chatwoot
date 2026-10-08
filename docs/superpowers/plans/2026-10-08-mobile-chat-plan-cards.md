@@ -61,7 +61,7 @@
 
 - [ ] **Step 1: 生成字典文件**
 
-把 ai-bridge 的字典机械转成 YAML（只取用到的 10 个键；`JSON.stringify` 的转义规则与 YAML 双引号字符串兼容）：
+把 ai-bridge 的字典机械转成 YAML（只取用到的 10 个键；`JSON.stringify` 的转义规则与 YAML 双引号字符串兼容）。**locale 键必须加引号**：Psych 是 YAML 1.1，裸 `no:` 会被解析成布尔 `false`，挪威语整块就取不到了（实测过：41 个键里 40 个 String、一个是 `false`）：
 
 ```bash
 mkdir -p config/mobile_chat
@@ -71,7 +71,7 @@ const { CARD_COPY } = require("/Users/zhoujundi/Repo/esim/customer-service-platf
 const KEYS = ["primary","alternative","data","unlimited","validity","dayUnit","price","cta","description","plan"];
 const lines = [];
 for (const locale of Object.keys(CARD_COPY)) {
-  lines.push(`${locale}:`);
+  lines.push(`${JSON.stringify(locale)}:`);
   for (const key of KEYS) {
     const value = CARD_COPY[locale][key];
     if (typeof value !== "string" || !value) throw new Error(`${locale}.${key} is not a nonempty string`);
@@ -93,15 +93,20 @@ d = YAML.load_file("config/mobile_chat/card_copy.yml");
 keys = %w[primary alternative data unlimited validity dayUnit price cta description plan];
 raise "locales=#{d.size}" unless d.size == 41;
 raise "en missing" unless d.key?("en");
+raise "non-string keys: #{d.keys.reject { |k| k.is_a?(String) }.inspect}" unless d.keys.all? { |k| k.is_a?(String) };
+raise "non-string values in #{d.keys.reject { |k| d[k].values.all? { |v| v.is_a?(String) } }.inspect}" unless d.values.all? { |copy| copy.values.all? { |v| v.is_a?(String) } };
 bad = d.reject { |_, v| v.keys.sort == keys.sort };
 raise "bad locales: #{bad.keys.inspect}" if bad.any?;
 raise "zh_CN.primary=#{d["zh_CN"]["primary"]}" unless d["zh_CN"]["primary"] == "最佳匹配";
 raise "en.validity=#{d["en"]["validity"]}" unless d["en"]["validity"] == "Validity";
+raise "no.primary=#{d.dig("no", "primary").inspect}" unless d.dig("no", "primary") == "Beste treff";
 puts "ok: #{d.size} locales, #{keys.size} keys each"
 '
 ```
 
 Expected: `ok: 41 locales, 10 keys each`
+
+> `no` 这一条断言是防复发的：键一旦退回不加引号，Psych 会把它变成 `false`，`copy_for('no')` 静默回落英文，而"41 个 locale / 每个 10 键"的检查**照样通过**（实测踩过）。
 
 - [ ] **Step 3: 写失败的 spec**（`bundle exec rspec` 需在有工具链的环境执行）
 
