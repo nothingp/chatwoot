@@ -87,6 +87,26 @@ RSpec.describe 'Public mobile chat session API', type: :request do
     expect(ContactInbox.last.hmac_verified).to be(false)
   end
 
+  it 'records the session values on the contact for later tools' do
+    with_modified_env(FRONTEND_URL: frontend_url) do
+      post '/public/api/v1/mobile_chat/session', params: payload, as: :json
+    end
+
+    expect(Contact.last.custom_attributes).to include(
+      'locale' => 'zh_CN',
+      'platform' => 'web',
+      'catalog_environment' => 'prod'
+    )
+  end
+
+  it 'accepts the app spelling of the locale' do
+    with_modified_env(FRONTEND_URL: frontend_url) do
+      post '/public/api/v1/mobile_chat/session', params: payload.except(:locale).merge(appLocale: 'ja_JP'), as: :json
+    end
+
+    expect(Contact.last.custom_attributes['locale']).to eq('ja_JP')
+  end
+
   it 'identifies a verified member and stores the app token' do
     stub_request(:get, user_info_url).to_return(
       status: 200,

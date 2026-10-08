@@ -15,12 +15,23 @@ class Public::Api::V1::MobileChat::SessionsController < PublicController
       hmac_verified: identity.token.present?
     ).perform
 
-    MobileChat::ContactCredentials.sync(contact_inbox.contact, identity.token)
+    MobileChat::ContactCredentials.sync(contact_inbox.contact, identity, session: session_attributes)
 
     render json: session_response(MobileChat::SessionStore.create(contact_inbox: contact_inbox, inbox: inbox))
   end
 
   private
+
+  # The two clients disagree on the locale key: the website sends `locale`, the app sends
+  # `appLocale`. Everything else keeps the name both of them use.
+  def session_attributes
+    {
+      locale: params[:locale].presence || params[:appLocale].presence,
+      platform: params[:platform],
+      catalog_environment: params[:catalogEnvironment],
+      currency: params[:currency]
+    }
+  end
 
   def identity_resolver
     MobileChat::IdentityResolver.new(
