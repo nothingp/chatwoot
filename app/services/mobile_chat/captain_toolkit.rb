@@ -300,9 +300,17 @@ class MobileChat::CaptainToolkit
     # ratio makes every card a different height and width. The title carries the destination.
     {
       title: plan[:name].to_s,
-      description: skus.map { |sku| sku_label(sku) }.join(' · '),
+      description: from_price_label(skus),
       actions: skus.map { |sku| sku_action(plan, sku) }
-    }
+    }.compact
+  end
+
+  # One anchor price reads better than repeating every SKU, which the buttons already carry.
+  def from_price_label(skus)
+    amounts = skus.filter_map { |sku| hash(sku[:price])['USD'].presence }
+    return if amounts.empty?
+
+    "from USD #{amounts.min_by(&:to_f)}"
   end
 
   def sku_label(sku)

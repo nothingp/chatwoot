@@ -234,7 +234,8 @@ RSpec.describe MobileChat::CaptainToolkit do
       # Anything beyond these keys fails ContentAttributeValidator on the message.
       expect(card.keys).to match_array(%i[title description actions])
       expect(card[:title]).to eq('Japan')
-      expect(card[:description]).to eq('5GB · 7 days · USD 9.99 · Unlimited · 7 days · USD 35.99')
+      # The cheapest price, not a repeat of every SKU -- the buttons carry those.
+      expect(card[:description]).to eq('from USD 9.99')
     end
 
     it 'turns each SKU into a postback button carrying the purchase payload' do
