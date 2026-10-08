@@ -695,4 +695,9 @@
   description: 'User orders path, used by later phases. Default: /v2/esim/user/orders'
   value: '/v2/esim/user/orders'
   locked: false
+- name: NOVYRO_CATALOG_ENVIRONMENT
+  display_title: 'Novyro Catalog Environment'
+  description: 'Checkout catalogue the plan cards buy from. One of dev, test or prod; used only when a customer session did not record its own catalog environment.'
+  value: 'prod'
+  locked: false
 ## ------ End of mobile chat ------ ##

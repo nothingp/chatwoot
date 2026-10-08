@@ -17,6 +17,7 @@ RSpec.describe MobileChat::CaptainToolkit do
     create(:installation_config, name: 'NOVYRO_USER_ORDERS_PATH', value: '/v2/esim/user/orders')
     create(:installation_config, name: 'NOVYRO_API_KEY', value: 'service-key')
     create(:installation_config, name: 'NOVYRO_SITE_ID', value: '10000')
+    create(:installation_config, name: 'NOVYRO_CATALOG_ENVIRONMENT', value: 'test')
 
     allow(Resolv).to receive(:getaddresses).and_call_original
     allow(Resolv).to receive(:getaddresses).with('api.example.com').and_return(['93.184.216.34'])
@@ -248,7 +249,11 @@ RSpec.describe MobileChat::CaptainToolkit do
               country_image: 'https://cdn/JP.svg',
               skus: [
                 { id: 13_055, data_size_gb: '10', billing_period_days: 7, price: { 'USD' => '16.99' } },
-                { id: 13_056, data_size_gb: '0', data_size_is_unlimited: true, billing_period_days: 7, price: { 'USD' => '35.99' } }
+                { id: 13_056, data_size_gb: '0', data_size_is_unlimited: true, billing_period_days: 7, price: { 'USD' => '35.99' } },
+                { id: 13_057, data_size_gb: '3', billing_period_days: 7, price: { 'USD' => '5.99' } },
+                { id: 13_058, data_size_gb: '3', billing_period_days: 7, price: { 'USD' => '5.99' } },
+                { id: 13_059, data_size_gb: '3', billing_period_days: 7, price: { 'USD' => '5.99' } },
+                { id: 13_060, data_size_gb: '3', billing_period_days: 7, price: { 'USD' => '5.99' } }
               ]
             }
           }.to_json
@@ -314,13 +319,71 @@ RSpec.describe MobileChat::CaptainToolkit do
     end
 
     it 'takes at most five skus' do
-      result = toolkit.purchase_actions(params.merge('sku_ids' => Array.new(6) { '13055' }))
+      result = toolkit.purchase_actions(params.merge('sku_ids' => %w[13055 13056 13057 13058 13059 13060]))
 
       expect(result[:cards].size).to eq(5)
     end
 
     it 'refuses an empty sku list' do
       expect(toolkit.purchase_actions(params.merge('sku_ids' => []))[:ok]).to be(false)
+    end
+
+    it 'collapses a repeated sku id into one card' do
+      result = toolkit.purchase_actions(params.merge('sku_ids' => %w[13055 13055]))
+
+      expect(result[:cards].size).to eq(1)
+    end
+
+    # The three shapes below used to reach messages.create! and raise, which the caller turns into
+    # a forced human handoff; they have to come back as an error the model can read instead.
+    it 'refuses an id beyond the safe integer range before calling upstream' do
+      result = toolkit.purchase_actions(params.merge('sku_ids' => ['9007199254740992']))
+
+      expect(result[:ok]).to be(false)
+      expect(result[:error]).to be_present
+      expect(a_request(:get, product_details_url)).not_to have_been_made
+    end
+
+    it 'refuses a sku that fills no fact at all' do
+      stub_request(:get, product_details_url)
+        .with(query: { product_id: '13' })
+        .to_return(status: 200, body: { code: 1, data: { product_id: 13, name: '日本', skus: [{ id: 13_055 }] } }.to_json)
+
+      result = toolkit.purchase_actions(params.merge('sku_ids' => ['13055']))
+
+      expect(result[:ok]).to be(false)
+      expect(result[:error]).to be_present
+    end
+
+    it 'refuses a product with no name to put on the card' do
+      stub_request(:get, product_details_url)
+        .with(query: { product_id: '13' })
+        .to_return(
+          status: 200,
+          body: {
+            code: 1,
+            data: {
+              product_id: 13, name: '',
+              skus: [{ id: 13_055, data_size_gb: '10', billing_period_days: 7, price: { 'USD' => '16.99' } }]
+            }
+          }.to_json
+        )
+
+      result = toolkit.purchase_actions(params.merge('sku_ids' => ['13055']))
+
+      expect(result[:ok]).to be(false)
+      expect(result[:error]).to be_present
+    end
+
+    it 'falls back to the configured catalog environment when the session did not record one' do
+      without_environment = create(:contact, account: account, identifier: 'member_67890',
+                                             custom_attributes: { 'app_token' => 'member-token', 'locale' => 'zh_CN',
+                                                                  'currency' => 'USD' })
+
+      action = described_class.new(create(:conversation, account: account, contact: without_environment))
+                              .purchase_actions(params)[:cards].first[:actions].first
+
+      expect(action[:uri]).to eq('https://app.example.com/app-actions/checkout?goods_id=13&sku_id=13055&catalog_env=test')
     end
   end
 

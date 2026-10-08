@@ -43,6 +43,13 @@ class MobileChat::CaptainToolkit
     'Ask them to sign in to the app and try again.'.freeze
   UPSTREAM_UNAVAILABLE =
     'The order and plan service is temporarily unavailable. Ask the customer to try again in a moment.'.freeze
+  # A plan card needs a title and one to three facts; the write-time validator rejects it
+  # otherwise. Both failures mean the chosen product or skus carry nothing to show, so the model
+  # must pick differently rather than retry the same ids.
+  PRODUCT_WITHOUT_NAME =
+    'That product has no name to show on a plan card. Choose a different product.'.freeze
+  SKUS_WITHOUT_FACTS =
+    'Those skus have no data size, validity or price to show on a plan card. Choose skus that have them.'.freeze
 
   def initialize(conversation)
     @conversation = conversation
@@ -127,7 +134,7 @@ class MobileChat::CaptainToolkit
   # as the main card and the rest as alternatives.
   def purchase_actions(params)
     product_id = param(params, :product_id).to_s
-    sku_ids = Array(param(params, :sku_ids)).map(&:to_s).first(CARD_LIMIT)
+    sku_ids = Array(param(params, :sku_ids)).map(&:to_s).uniq.first(CARD_LIMIT)
     invalid = purchase_request_error(product_id, sku_ids)
     return { ok: false, error: invalid } if invalid
 
@@ -136,7 +143,8 @@ class MobileChat::CaptainToolkit
 
     product = present_product(response.dig(:data, 'product') || response[:data], product_id)
     skus = selected_skus(product, sku_ids)
-    return { ok: false, error: 'Those sku_ids are not part of that product.' } if skus.any?(&:nil?)
+    card_error = purchase_card_error(product, skus)
+    return { ok: false, error: card_error } if card_error
 
     { ok: true, cards: purchase_cards(product, skus, params) }
   end
@@ -294,17 +302,26 @@ class MobileChat::CaptainToolkit
     # Upstream reports the size as 0 for unlimited SKUs, which reads as "0 GB" in a prompt.
     unlimited = value(sku, :data_size_is_unlimited, :dataSizeIsUnlimited)
     gigabytes = value(sku, :data_size_gb, :dataSizeGb)
+    megabytes = value(sku, :data_size_mb, :dataSizeMb)
 
     {
       sku_id: value(sku, :sku_id, :skuId, :id),
       name: value(sku, :sku_name, :skuName, :name, :product_name, :productName),
-      data_size_value: unlimited ? nil : (gigabytes || value(sku, :data_size_mb, :dataSizeMb)),
-      data_size_unit: unlimited ? nil : (gigabytes.present? ? 'GB' : 'MB'),
+      data_size_value: unlimited ? nil : (gigabytes || megabytes),
+      data_size_unit: unlimited ? nil : size_unit(gigabytes, megabytes),
       data_unlimited: unlimited,
       billing_period_days: value(sku, :billing_period_days, :billingPeriodDays, :billing_period, :billingPeriod),
       price: value(sku, :price),
       labels: Array(value(sku, :sku_labels, :skuLabels)).first(MAX_ITEMS)
     }.compact.transform_values { |item| scalar(item) }
+  end
+
+  # A sku that reports neither GB nor MB has no unit to show. Reporting one anyway would reach the
+  # prompt, and the card's data fact, as a size that says nothing.
+  def size_unit(gigabytes, megabytes)
+    return if gigabytes.blank? && megabytes.blank?
+
+    gigabytes.present? ? 'GB' : 'MB'
   end
 
   # --- Card building ---
@@ -334,6 +351,18 @@ class MobileChat::CaptainToolkit
         uri: checkout_uri(product[:product_id], sku[:sku_id])
       }]
     }
+  end
+
+  # Why one of these skus cannot become a card: it is not in the product, the product has no name
+  # to show, or the sku fills no fact at all. The last two are shapes the write-time validator
+  # rejects, so they are answered here with an error the model can act on instead of a
+  # RecordInvalid it cannot read (which the caller turns into a human handoff).
+  def purchase_card_error(product, skus)
+    return 'Those sku_ids are not part of that product.' if skus.any?(&:nil?)
+    return PRODUCT_WITHOUT_NAME if product[:name].to_s.strip.blank?
+
+    copy = MobileChat::CardCopy.copy_for(client_locale)
+    return SKUS_WITHOUT_FACTS if skus.any? { |sku| purchase_facts(sku, copy).empty? }
   end
 
   def purchase_cards(product, skus, params)
@@ -393,8 +422,10 @@ class MobileChat::CaptainToolkit
       MobileChat::Config.value('NOVYRO_CATALOG_ENVIRONMENT')
   end
 
+  # Bounded by the validator's own limit, so an id it would reject at write time is rejected here
+  # instead, where the model reads an error rather than the message write raising.
   def checkout_id?(value)
-    value.match?(/\A[1-9][0-9]{0,18}\z/)
+    value.match?(/\A[0-9]+\z/) && value.to_i.between?(1, ContentAttributeValidator::NOVYRO_PLAN_MAX_SAFE_ID)
   end
 
   # The clients send these on every session; upstream rejects a malformed value, and a cosmetic
