@@ -64,3 +64,8 @@
   title: 'Get Product Details'
   description: 'Read live catalogue details for one product'
   icon: 'tag'
+
+- id: create_purchase_action
+  title: 'Create Purchase Action'
+  description: 'Post the recommended plan as cards with a working checkout button'
+  icon: 'checkmark'

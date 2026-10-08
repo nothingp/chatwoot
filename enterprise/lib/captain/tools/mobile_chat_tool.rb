@@ -14,6 +14,9 @@ class Captain::Tools::MobileChatTool < Captain::Tools::BasePublicTool
 
   # Cards render natively in the widget, but they need a conversation to live in. The Playground
   # has none, so a tool that cannot post still returns its JSON for the model to read out.
+  #
+  # The variant is the app's contract: it tells the app which item keys to expect. Without it the
+  # message validates as a plain card and the app has nothing to render a plan from.
   def post_cards(tool_context, cards)
     return false if cards.blank?
 
@@ -34,7 +37,7 @@ class Captain::Tools::MobileChatTool < Captain::Tools::BasePublicTool
       # cards message is created correctly and then never shown. Titles are data we already
       # have, so they add no language of their own.
       content: cards.map { |card| card[:title] }.join(' · '),
-      content_attributes: { items: cards }
+      content_attributes: { variant: 'novyro_plan_group', items: cards }
     )
     true
   end
