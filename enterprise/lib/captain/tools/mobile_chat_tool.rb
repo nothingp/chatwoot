@@ -25,6 +25,11 @@ class Captain::Tools::MobileChatTool < Captain::Tools::BasePublicTool
       inbox_id: conversation.inbox_id,
       message_type: :outgoing,
       content_type: :cards,
+      # The widget only renders an agent bubble when the message has content
+      # (AgentMessage#shouldDisplayAgentMessage returns message.content), so a content-less
+      # cards message is created correctly and then never shown. Titles are data we already
+      # have, so they add no language of their own.
+      content: cards.map { |card| card[:title] }.join(' · '),
       content_attributes: { items: cards }
     )
     true
