@@ -112,4 +112,8 @@ module Redis::RedisKeys
   DEVICE_VERIFICATION_ATTEMPTS = 'DEVICE_VERIFICATION::ATTEMPTS::%<user_id>d::%<jti>s'.freeze
   # Rolling per-user challenge issuance budget
   DEVICE_VERIFICATION_ISSUANCE = 'DEVICE_VERIFICATION::ISSUANCE::%<user_id>d'.freeze
+
+  ## Mobile chat
+  # Short-lived handoff between session creation and the widget redirect
+  MOBILE_CHAT_SESSION = 'MOBILE_CHAT_SESSION::%<id>s'.freeze
 end
