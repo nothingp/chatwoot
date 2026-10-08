@@ -1,4 +1,4 @@
-zh_CN:
+"zh_CN":
   primary: "最佳匹配"
   alternative: "备选方案"
   data: "流量"
@@ -9,7 +9,7 @@ zh_CN:
   cta: "查看方案"
   description: "已核实套餐方案。"
   plan: "套餐方案"
-en:
+"en":
   primary: "Best match"
   alternative: "Alternative"
   data: "Data"
@@ -20,7 +20,7 @@ en:
   cta: "View plan"
   description: "Verified plan option."
   plan: "Plan option"
-zh_Hant:
+"zh_Hant":
   primary: "最佳配對"
   alternative: "備選方案"
   data: "數據"
@@ -31,7 +31,7 @@ zh_Hant:
   cta: "查看方案"
   description: "已核實方案。"
   plan: "方案"
-ja:
+"ja":
   primary: "最適なプラン"
   alternative: "代替プラン"
   data: "データ"
@@ -42,7 +42,7 @@ ja:
   cta: "プランを見る"
   description: "確認済みのプランです。"
   plan: "プラン"
-ko:
+"ko":
   primary: "최적 요금제"
   alternative: "대체 요금제"
   data: "데이터"
@@ -53,7 +53,7 @@ ko:
   cta: "요금제 보기"
   description: "확인된 요금제입니다."
   plan: "요금제"
-es:
+"es":
   primary: "Mejor opción"
   alternative: "Alternativa"
   data: "Datos"
@@ -64,7 +64,7 @@ es:
   cta: "Ver plan"
   description: "Opción de plan verificada."
   plan: "Opción de plan"
-de:
+"de":
   primary: "Beste Wahl"
   alternative: "Alternative"
   data: "Daten"
@@ -75,7 +75,7 @@ de:
   cta: "Tarif ansehen"
   description: "Geprüfte Tarifoption."
   plan: "Tarifoption"
-fr:
+"fr":
   primary: "Meilleur choix"
   alternative: "Alternative"
   data: "Données"
@@ -86,7 +86,7 @@ fr:
   cta: "Voir le forfait"
   description: "Option de forfait vérifiée."
   plan: "Option de forfait"
-ar:
+"ar":
   primary: "الخيار الأفضل"
   alternative: "بديل"
   data: "بيانات"
@@ -97,7 +97,7 @@ ar:
   cta: "عرض الباقة"
   description: "خيار باقة موثّق."
   plan: "خيار الباقة"
-ru:
+"ru":
   primary: "Лучший вариант"
   alternative: "Альтернатива"
   data: "Данные"
@@ -108,7 +108,7 @@ ru:
   cta: "Посмотреть тариф"
   description: "Проверенный вариант тарифа."
   plan: "Вариант тарифа"
-uz:
+"uz":
   primary: "Eng mos"
   alternative: "Muqobil"
   data: "Maʼlumot"
@@ -119,7 +119,7 @@ uz:
   cta: "Paketni koʻrish"
   description: "Tasdiqlangan paket varianti."
   plan: "Paket varianti"
-ky:
+"ky":
   primary: "Эң ылайыктуу"
   alternative: "Альтернатива"
   data: "Берилиштер"
@@ -130,7 +130,7 @@ ky:
   cta: "Топтомду көрүү"
   description: "Текшерилген топтом варианты."
   plan: "Топтом варианты"
-hi:
+"hi":
   primary: "सर्वोत्तम"
   alternative: "विकल्प"
   data: "डेटा"
@@ -141,7 +141,7 @@ hi:
   cta: "प्लान देखें"
   description: "सत्यापित प्लान विकल्प।"
   plan: "प्लान विकल्प"
-id:
+"id":
   primary: "Paling cocok"
   alternative: "Alternatif"
   data: "Data"
@@ -152,7 +152,7 @@ id:
   cta: "Lihat paket"
   description: "Opsi paket terverifikasi."
   plan: "Opsi paket"
-pt_BR:
+"pt_BR":
   primary: "Melhor opção"
   alternative: "Alternativa"
   data: "Dados"
@@ -163,7 +163,7 @@ pt_BR:
   cta: "Ver plano"
   description: "Opção de plano verificada."
   plan: "Opção de plano"
-it:
+"it":
   primary: "Migliore scelta"
   alternative: "Alternativa"
   data: "Dati"
@@ -174,7 +174,7 @@ it:
   cta: "Vedi piano"
   description: "Opzione piano verificata."
   plan: "Opzione piano"
-th:
+"th":
   primary: "ตรงที่สุด"
   alternative: "ทางเลือก"
   data: "ข้อมูล"
@@ -185,7 +185,7 @@ th:
   cta: "ดูแพ็กเกจ"
   description: "ตัวเลือกแพ็กเกจที่ตรวจสอบแล้ว"
   plan: "ตัวเลือกแพ็กเกจ"
-tl:
+"tl":
   primary: "Pinakamahusay"
   alternative: "Alternatibo"
   data: "Data"
@@ -196,7 +196,7 @@ tl:
   cta: "Tingnan ang plano"
   description: "Beripikadong pagpipilian ng plano."
   plan: "Pagpipilian ng plano"
-ms:
+"ms":
   primary: "Padanan terbaik"
   alternative: "Alternatif"
   data: "Data"
@@ -207,7 +207,7 @@ ms:
   cta: "Lihat pelan"
   description: "Pilihan pelan yang disahkan."
   plan: "Pilihan pelan"
-vi:
+"vi":
   primary: "Phù hợp nhất"
   alternative: "Thay thế"
   data: "Dữ liệu"
@@ -218,7 +218,7 @@ vi:
   cta: "Xem gói"
   description: "Lựa chọn gói đã xác minh."
   plan: "Lựa chọn gói"
-tr:
+"tr":
   primary: "En iyi eşleşme"
   alternative: "Alternatif"
   data: "Veri"
@@ -229,7 +229,7 @@ tr:
   cta: "Paketi gör"
   description: "Doğrulanmış paket seçeneği."
   plan: "Paket seçeneği"
-es_MX:
+"es_MX":
   primary: "Mejor opción"
   alternative: "Alternativa"
   data: "Datos"
@@ -240,7 +240,7 @@ es_MX:
   cta: "Ver plan"
   description: "Opción de plan verificada."
   plan: "Opción de plan"
-bn:
+"bn":
   primary: "সেরা মিল"
   alternative: "বিকল্প"
   data: "ডেটা"
@@ -251,7 +251,7 @@ bn:
   cta: "প্ল্যান দেখুন"
   description: "যাচাই করা প্ল্যানের বিকল্প।"
   plan: "প্ল্যানের বিকল্প"
-fa:
+"fa":
   primary: "بهترین گزینه"
   alternative: "جایگزین"
   data: "داده"
@@ -262,7 +262,7 @@ fa:
   cta: "مشاهده بسته"
   description: "گزینه بسته تأییدشده."
   plan: "گزینه بسته"
-pl:
+"pl":
   primary: "Najlepsza opcja"
   alternative: "Alternatywa"
   data: "Dane"
@@ -273,7 +273,7 @@ pl:
   cta: "Zobacz pakiet"
   description: "Zweryfikowana opcja pakietu."
   plan: "Opcja pakietu"
-uk:
+"uk":
   primary: "Найкращий варіант"
   alternative: "Альтернатива"
   data: "Дані"
@@ -284,7 +284,7 @@ uk:
   cta: "Переглянути пакет"
   description: "Перевірений варіант пакета."
   plan: "Варіант пакета"
-hr:
+"hr":
   primary: "Najbolji izbor"
   alternative: "Alternativa"
   data: "Podaci"
@@ -295,7 +295,7 @@ hr:
   cta: "Pogledaj paket"
   description: "Provjerena opcija paketa."
   plan: "Opcija paketa"
-nl:
+"nl":
   primary: "Beste match"
   alternative: "Alternatief"
   data: "Data"
@@ -306,7 +306,7 @@ nl:
   cta: "Bundel bekijken"
   description: "Geverifieerde bundeloptie."
   plan: "Bundeloptie"
-cs:
+"cs":
   primary: "Nejlepší volba"
   alternative: "Alternativa"
   data: "Data"
@@ -317,7 +317,7 @@ cs:
   cta: "Zobrazit tarif"
   description: "Ověřená možnost tarifu."
   plan: "Možnost tarifu"
-fi:
+"fi":
   primary: "Paras osuma"
   alternative: "Vaihtoehto"
   data: "Data"
@@ -328,7 +328,7 @@ fi:
   cta: "Näytä paketti"
   description: "Vahvistettu pakettivaihtoehto."
   plan: "Pakettivaihtoehto"
-sk:
+"sk":
   primary: "Najlepšia zhoda"
   alternative: "Alternatíva"
   data: "Dáta"
@@ -339,7 +339,7 @@ sk:
   cta: "Zobraziť program"
   description: "Overená možnosť programu."
   plan: "Možnosť programu"
-ro:
+"ro":
   primary: "Potrivire optimă"
   alternative: "Alternativă"
   data: "Date"
@@ -350,7 +350,7 @@ ro:
   cta: "Vezi planul"
   description: "Opțiune de plan verificată."
   plan: "Opțiune de plan"
-sv:
+"sv":
   primary: "Bästa matchning"
   alternative: "Alternativ"
   data: "Data"
@@ -361,7 +361,7 @@ sv:
   cta: "Visa paket"
   description: "Verifierat paketalternativ."
   plan: "Paketalternativ"
-he:
+"he":
   primary: "ההתאמה הטובה ביותר"
   alternative: "חלופה"
   data: "נתונים"
@@ -372,7 +372,7 @@ he:
   cta: "הצג חבילה"
   description: "אפשרות חבילה מאומתת."
   plan: "אפשרות חבילה"
-el:
+"el":
   primary: "Καλύτερη επιλογή"
   alternative: "Εναλλακτική"
   data: "Δεδομένα"
@@ -383,7 +383,7 @@ el:
   cta: "Προβολή πακέτου"
   description: "Επαληθευμένη επιλογή πακέτου."
   plan: "Επιλογή πακέτου"
-hu:
+"hu":
   primary: "Legjobb találat"
   alternative: "Alternatíva"
   data: "Adat"
@@ -394,7 +394,7 @@ hu:
   cta: "Csomag megtekintése"
   description: "Ellenőrzött csomaglehetőség."
   plan: "Csomaglehetőség"
-da:
+"da":
   primary: "Bedste match"
   alternative: "Alternativ"
   data: "Data"
@@ -405,7 +405,7 @@ da:
   cta: "Se abonnement"
   description: "Verificeret abonnementsmulighed."
   plan: "Abonnementsmulighed"
-fr_CA:
+"fr_CA":
   primary: "Meilleur choix"
   alternative: "Alternative"
   data: "Données"
@@ -416,7 +416,7 @@ fr_CA:
   cta: "Voir le forfait"
   description: "Option de forfait vérifiée."
   plan: "Option de forfait"
-ca:
+"ca":
   primary: "Millor opció"
   alternative: "Alternativa"
   data: "Dades"
@@ -427,7 +427,7 @@ ca:
   cta: "Veure pla"
   description: "Opció de pla verificada."
   plan: "Opció de pla"
-no:
+"no":
   primary: "Beste treff"
   alternative: "Alternativ"
   data: "Data"
@@ -438,7 +438,7 @@ no:
   cta: "Se abonnement"
   description: "Verifisert abonnementsalternativ."
   plan: "Abonnementsalternativ"
-pt_PT:
+"pt_PT":
   primary: "Melhor opção"
   alternative: "Alternativa"
   data: "Dados"

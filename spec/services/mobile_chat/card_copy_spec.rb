@@ -10,6 +10,10 @@ RSpec.describe MobileChat::CardCopy do
       expect(described_class.copy_for('zh_Hant')['primary']).to eq('最佳配對')
     end
 
+    it 'returns the norwegian copy for no, which yaml would otherwise read as false' do
+      expect(described_class.copy_for('no')['primary']).to eq('Beste treff')
+    end
+
     it 'falls back to the language prefix for a regional variant' do
       expect(described_class.copy_for('en_GB')['validity']).to eq('Validity')
     end
@@ -51,6 +55,22 @@ RSpec.describe MobileChat::CardCopy do
     it 'falls back when the text carries markdown' do
       expect(described_class.sanitize_description('- 7 days in Japan', fallback)).to eq(fallback)
       expect(described_class.sanitize_description('[plan](x)', fallback)).to eq(fallback)
+    end
+
+    it 'falls back when the text carries a table' do
+      expect(described_class.sanitize_description("| Plan | Data |\n| 7 days | 10 GB |", fallback)).to eq(fallback)
+    end
+
+    it 'keeps a single pipe, which is ordinary punctuation' do
+      expect(described_class.sanitize_description('7 days | 10 GB', fallback)).to eq('7 days | 10 GB')
+    end
+
+    it 'keeps prose that only has a colon and a space' do
+      expect(described_class.sanitize_description('Data: 10 GB, Validity: 7 days', fallback)).to eq('Data: 10 GB, Validity: 7 days')
+    end
+
+    it 'falls back when a scheme carries a payload' do
+      expect(described_class.sanitize_description('data:text/html;base64,AAAA', fallback)).to eq(fallback)
     end
 
     it 'falls back when the text is longer than the limit' do
