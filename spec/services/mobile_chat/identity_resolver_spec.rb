@@ -3,8 +3,6 @@ require 'rails_helper'
 RSpec.describe MobileChat::IdentityResolver do
   let(:installation_id) { '3f2504e0-4f89-41d3-9a0c-0305e82c3301' }
   let(:anonymous_profile_id) { '9c858901-8a57-4791-81fe-4c455b099bc9' }
-  let(:token) { nil }
-  let(:user_info) { nil }
 
   describe '#perform without a token' do
     it 'derives the guest identifier from the installation and profile ids' do
@@ -54,6 +52,19 @@ RSpec.describe MobileChat::IdentityResolver do
       expect(identity.name).to eq('Zhang San')
       expect(identity.email).to eq('user@example.com')
       expect(identity.token).to eq('member-token')
+    end
+
+    it 'treats an empty nickname and email as absent' do
+      allow(MobileChat::NovyroClient).to receive(:new).with(token: token).and_return(
+        instance_double(MobileChat::NovyroClient, user_info: { 'id' => 1001, 'nickname' => '', 'email' => '' })
+      )
+
+      identity = described_class.new(
+        token: token, installation_id: installation_id, anonymous_profile_id: anonymous_profile_id
+      ).perform
+
+      expect(identity.name).to be_nil
+      expect(identity.email).to be_nil
     end
   end
 
