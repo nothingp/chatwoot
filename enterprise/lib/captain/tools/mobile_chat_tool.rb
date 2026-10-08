@@ -1,16 +1,14 @@
 # Shared plumbing for the tools that read Novyro data on the customer's behalf.
 #
-# They all need the same thing -- the conversation, because the customer's app token lives on
-# its contact -- and nothing else. find_conversation already scopes by account, so one account's
-# tool call can never reach another account's conversation.
+# Only the order tools need the conversation, because the customer's app token lives on its
+# contact. The product tools read the public catalogue and need no identity at all, so the
+# conversation is optional here -- which is also what lets them work in the Playground, where
+# there is no conversation in the tool context. find_conversation scopes by account, so one
+# account's tool call can never reach another account's conversation.
 class Captain::Tools::MobileChatTool < Captain::Tools::BasePublicTool
   private
 
-  # Returns the toolkit for this call, or nil when the conversation is not resolvable.
   def toolkit(tool_context)
-    conversation = find_conversation(tool_context.state)
-    return if conversation.blank?
-
-    MobileChat::CaptainToolkit.new(conversation)
+    MobileChat::CaptainToolkit.new(find_conversation(tool_context.state))
   end
 end

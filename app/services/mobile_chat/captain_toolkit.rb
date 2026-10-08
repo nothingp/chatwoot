@@ -124,7 +124,7 @@ class MobileChat::CaptainToolkit
   attr_reader :conversation
 
   def contact
-    @contact ||= conversation.contact_inbox&.contact
+    @contact ||= conversation&.contact_inbox&.contact
   end
 
   # Written at session creation and refreshed on every new session (MobileChat::ContactCredentials).

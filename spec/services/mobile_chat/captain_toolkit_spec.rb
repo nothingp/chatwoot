@@ -209,4 +209,25 @@ RSpec.describe MobileChat::CaptainToolkit do
     end
   end
 
+  describe 'without a conversation' do
+    # The Playground passes no conversation in the tool context. The product tools need no
+    # identity, so they must still work there.
+    let(:toolkit) { described_class.new(nil) }
+
+    it 'still answers public catalogue queries' do
+      stub_request(:get, recommendations_url)
+        .with(query: { country_code: 'JP', billing_period: '7' })
+        .to_return(status: 200, body: { code: 1, data: { recommendations: [] } }.to_json)
+
+      expect(toolkit.recommend_plans({ country_code: 'JP', billing_period: 7 })[:ok]).to be(true)
+    end
+
+    it 'reports orders as unavailable instead of raising' do
+      result = toolkit.list_orders
+
+      expect(result[:ok]).to be(false)
+      expect(result[:error]).to eq(MobileChat::CaptainToolkit::SIGN_IN_REQUIRED)
+      expect(a_request(:get, orders_url)).not_to have_been_made
+    end
+  end
 end

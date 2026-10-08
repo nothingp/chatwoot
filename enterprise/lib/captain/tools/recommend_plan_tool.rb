@@ -4,9 +4,6 @@ class Captain::Tools::RecommendPlanTool < Captain::Tools::MobileChatTool
   parameter :billing_period, type: 'integer', description: 'Trip length in days, e.g. 7', required: true
 
   def perform(tool_context, **params)
-    tools = toolkit(tool_context)
-    return failure_result('Conversation not found', tool_context.state) if tools.blank?
-
-    tools.recommend_plans(params).to_json
+    toolkit(tool_context).recommend_plans(params).to_json
   end
 end

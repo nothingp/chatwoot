@@ -3,9 +3,6 @@ class Captain::Tools::SearchProductTool < Captain::Tools::MobileChatTool
   parameter :keyword, type: 'string', description: 'What to search for, e.g. Japan or Europe', required: true
 
   def perform(tool_context, **params)
-    tools = toolkit(tool_context)
-    return failure_result('Conversation not found', tool_context.state) if tools.blank?
-
-    tools.search_products(params).to_json
+    toolkit(tool_context).search_products(params).to_json
   end
 end
