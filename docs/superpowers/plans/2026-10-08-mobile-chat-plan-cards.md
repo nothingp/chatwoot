@@ -1004,7 +1004,8 @@ RSpec.describe Captain::Tools::CreatePurchaseActionTool, type: :model do
     expect(message.content_type).to eq('cards')
     expect(message.content).to eq('Japan')
     expect(message.content_attributes['variant']).to eq('novyro_plan_group')
-    expect(message.content_attributes['items']).to eq(cards)
+    # content_attributes is a jsonb-backed store: symbol keys come back as strings.
+    expect(message.content_attributes['items']).to eq(cards.deep_stringify_keys)
     expect(result).to include('Posted 1 plan card')
   end
 
