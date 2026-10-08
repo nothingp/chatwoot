@@ -24,6 +24,10 @@ class Captain::Tools::MobileChatTool < Captain::Tools::BasePublicTool
       account_id: conversation.account_id,
       inbox_id: conversation.inbox_id,
       message_type: :outgoing,
+      # Captain's own replies are sent by the assistant record, and that sender is what the widget
+      # shows as the agent name. Without it the card renders under the widget's "Bot" fallback,
+      # so one reply would look like two different senders.
+      sender: @assistant,
       content_type: :cards,
       # The widget only renders an agent bubble when the message has content
       # (AgentMessage#shouldDisplayAgentMessage returns message.content), so a content-less
