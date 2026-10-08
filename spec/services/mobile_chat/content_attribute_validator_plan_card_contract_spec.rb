@@ -1,9 +1,11 @@
 require 'rails_helper'
 
-# The app's contract sample, verbatim from
-# esimgo-mobile/test/chatwoot_client_models_test.dart ("parses the complete Novyro plan-group
-# response contract"). If this stops validating, the app stops rendering plan cards.
-RSpec.describe 'novyro plan group contract' do
+# The novyro_plan_group gate in the validator, pinned to the app's own sample minus the
+# bridge-only digest, from esimgo-mobile/test/chatwoot_client_models_test.dart ("parses the
+# complete Novyro plan-group response contract"): the Dart sample also carries a top-level
+# customer_support_content_sha256, which this contract's exact-key top level deliberately rejects.
+# If this stops validating, the app stops rendering plan cards.
+RSpec.describe ContentAttributeValidator do
   let(:account) { create(:account) }
   let(:inbox) { create(:inbox, account: account) }
   let(:conversation) { create(:conversation, account: account, inbox: inbox) }

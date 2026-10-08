@@ -16,7 +16,8 @@ class Captain::Tools::MobileChatTool < Captain::Tools::BasePublicTool
   # has none, so a tool that cannot post still returns its JSON for the model to read out.
   #
   # The variant is the app's contract: it tells the app which item keys to expect. Without it the
-  # message validates as a plain card and the app has nothing to render a plan from.
+  # message takes the plain-card branch, which rejects `badge` and `facts`, so `create!` would
+  # raise rather than post anything the app could render.
   def post_cards(tool_context, cards)
     return false if cards.blank?
 
