@@ -262,12 +262,16 @@ class MobileChat::CaptainToolkit
 
   def present_sku(raw)
     sku = hash(raw)
+    # Upstream reports the size as 0 for unlimited SKUs, which reads as "0 GB" in a prompt.
+    unlimited = value(sku, :data_size_is_unlimited, :dataSizeIsUnlimited)
+    gigabytes = value(sku, :data_size_gb, :dataSizeGb)
+
     {
       sku_id: value(sku, :sku_id, :skuId, :id),
       name: value(sku, :sku_name, :skuName, :name, :product_name, :productName),
-      data_size_value: value(sku, :data_size_gb, :dataSizeGb) || value(sku, :data_size_mb, :dataSizeMb),
-      data_size_unit: value(sku, :data_size_gb, :dataSizeGb).present? ? 'GB' : 'MB',
-      data_unlimited: value(sku, :data_size_is_unlimited, :dataSizeIsUnlimited),
+      data_size_value: unlimited ? nil : (gigabytes || value(sku, :data_size_mb, :dataSizeMb)),
+      data_size_unit: unlimited ? nil : (gigabytes.present? ? 'GB' : 'MB'),
+      data_unlimited: unlimited,
       billing_period_days: value(sku, :billing_period_days, :billingPeriodDays, :billing_period, :billingPeriod),
       price: value(sku, :price),
       labels: Array(value(sku, :sku_labels, :skuLabels)).first(MAX_ITEMS)

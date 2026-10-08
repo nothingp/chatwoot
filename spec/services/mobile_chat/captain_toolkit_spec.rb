@@ -157,7 +157,10 @@ RSpec.describe MobileChat::CaptainToolkit do
                   product_name: 'Japan',
                   country_code: 'JP',
                   country_image: 'https://cdn/JP.svg',
-                  skus: [{ id: 13055, data_size_gb: '5', billing_period_days: 7, price: { 'USD' => '9.90' } }]
+                  skus: [
+                    { id: 13055, data_size_gb: '5', billing_period_days: 7, price: { 'USD' => '9.90' } },
+                    { id: 13056, data_size_gb: '0', data_size_is_unlimited: true, price: { 'USD' => '35.99' } }
+                  ]
                 }
               ]
             }
@@ -173,6 +176,12 @@ RSpec.describe MobileChat::CaptainToolkit do
       expect(plan[:name]).to eq('Japan')
       expect(plan[:skus].first[:sku_id]).to eq(13055)
       expect(plan[:skus].first[:data_size_value]).to eq('5')
+      # Unlimited SKUs report their size as 0 upstream, which must not read as "0 GB".
+      unlimited = plan[:skus].last
+      expect(unlimited[:sku_id]).to eq(13056)
+      expect(unlimited[:data_unlimited]).to be(true)
+      expect(unlimited).not_to have_key(:data_size_value)
+      expect(unlimited).not_to have_key(:data_size_unit)
     end
   end
 
