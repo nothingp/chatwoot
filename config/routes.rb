@@ -36,6 +36,7 @@ Rails.application.routes.draw do
     get '/app/accounts/:account_id/onboarding/inbox-setup', to: 'dashboard#index', as: 'app_onboarding_inbox_setup'
 
     resource :widget, only: [:show]
+    get '/mobile-chat', to: 'mobile_chat#show'
     namespace :survey do
       resources :responses, only: [:show]
     end

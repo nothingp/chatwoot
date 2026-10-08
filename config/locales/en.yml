@@ -969,3 +969,7 @@ en:
         test_email:
           queued: 'Test email on its way to %{email}. Ask the user to check their inbox and spam folder.'
           subject: 'Test email from %{brand_name} support'
+  mobile_chat:
+    expired:
+      title: 'This chat session has expired'
+      description: 'Please reopen customer service from the app.'
