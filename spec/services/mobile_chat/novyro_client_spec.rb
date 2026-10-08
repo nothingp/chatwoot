@@ -17,7 +17,7 @@ RSpec.describe MobileChat::NovyroClient do
   it 'sends the app token together with the service credentials' do
     request = stub_request(:get, user_info_url)
               .with(headers: { 'token' => 'member-token', 'x-api-key' => 'service-key', 'site-id' => '10000' })
-              .to_return(status: 200, body: { code: 0, msg: 'success',
+              .to_return(status: 200, body: { code: 1, msg: 'success',
                                               data: { id: 1001, nickname: 'Zhang San', email: 'user@example.com' } }.to_json)
 
     expect(client.user_info).to eq('id' => 1001, 'nickname' => 'Zhang San', 'email' => 'user@example.com')
@@ -30,20 +30,26 @@ RSpec.describe MobileChat::NovyroClient do
     expect(client.user_info).to be_nil
   end
 
+  it 'treats the documented zero code as a failure on the production host' do
+    stub_request(:get, user_info_url).to_return(status: 200, body: { code: 0, data: { id: 1001 } }.to_json)
+
+    expect(client.user_info).to be_nil
+  end
+
   it 'returns nil for a string success code' do
-    stub_request(:get, user_info_url).to_return(status: 200, body: { code: '0', data: { id: 1001 } }.to_json)
+    stub_request(:get, user_info_url).to_return(status: 200, body: { code: '1', data: { id: 1001 } }.to_json)
 
     expect(client.user_info).to be_nil
   end
 
   it 'returns nil when the payload carries no member id' do
-    stub_request(:get, user_info_url).to_return(status: 200, body: { code: 0, data: { nickname: 'Zhang San' } }.to_json)
+    stub_request(:get, user_info_url).to_return(status: 200, body: { code: 1, data: { nickname: 'Zhang San' } }.to_json)
 
     expect(client.user_info).to be_nil
   end
 
   it 'returns nil when data is not an object' do
-    stub_request(:get, user_info_url).to_return(status: 200, body: { code: 0, data: nil }.to_json)
+    stub_request(:get, user_info_url).to_return(status: 200, body: { code: 1, data: nil }.to_json)
 
     expect(client.user_info).to be_nil
   end

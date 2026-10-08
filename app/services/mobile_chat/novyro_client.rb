@@ -1,5 +1,9 @@
 class MobileChat::NovyroClient
-  SUCCESS_CODE = 0
+  # Verified against the production host (app.novyapp.com/api): successful product
+  # responses carry `code: 1` and auth failures carry `code: 401`. The public API docs
+  # show `code: 0`, but that documents a different host — do not "fix" this back to 0,
+  # it silently turns every verified member into an anonymous guest.
+  SUCCESS_CODE = 1
   MAX_RESPONSE_BYTES = 64.kilobytes
   OPEN_TIMEOUT = 2
   READ_TIMEOUT = 5

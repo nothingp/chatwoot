@@ -90,7 +90,7 @@ RSpec.describe 'Public mobile chat session API', type: :request do
   it 'identifies a verified member and stores the app token' do
     stub_request(:get, user_info_url).to_return(
       status: 200,
-      body: { code: 0, msg: 'success',
+      body: { code: 1, msg: 'success',
               data: { id: 1001, nickname: 'Zhang San', email: 'member@example.com' } }.to_json
     )
 
