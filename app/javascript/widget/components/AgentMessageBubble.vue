@@ -3,6 +3,7 @@ import { useMessageFormatter } from 'shared/composables/useMessageFormatter';
 import ChatCard from 'shared/components/ChatCard.vue';
 import ChatForm from 'shared/components/ChatForm.vue';
 import ChatOptions from 'shared/components/ChatOptions.vue';
+import PlanCards from 'shared/components/PlanCards.vue';
 import ChatArticle from './template/Article.vue';
 import EmailInput from './template/EmailInput.vue';
 import CustomerSatisfaction from 'shared/components/CustomerSatisfaction.vue';
@@ -18,6 +19,7 @@ export default {
     EmailInput,
     CustomerSatisfaction,
     IntegrationCard,
+    PlanCards,
   },
   props: {
     message: { type: String, default: null },
@@ -48,6 +50,9 @@ export default {
     },
     isCards() {
       return this.contentType === 'cards';
+    },
+    isNovyroPlanGroup() {
+      return this.messageContentAttributes.variant === 'novyro_plan_group';
     },
     isOptions() {
       return this.contentType === 'input_select';
@@ -129,14 +134,20 @@ export default {
       @submit="onFormSubmit"
     />
     <div v-if="isCards">
-      <ChatCard
-        v-for="item in messageContentAttributes.items"
-        :key="item.title"
-        :media-url="item.media_url"
-        :title="item.title"
-        :description="item.description"
-        :actions="item.actions"
+      <PlanCards
+        v-if="isNovyroPlanGroup"
+        :items="messageContentAttributes.items"
       />
+      <template v-else>
+        <ChatCard
+          v-for="item in messageContentAttributes.items"
+          :key="item.title"
+          :media-url="item.media_url"
+          :title="item.title"
+          :description="item.description"
+          :actions="item.actions"
+        />
+      </template>
     </div>
     <div v-if="isArticle">
       <ChatArticle :items="messageContentAttributes.items" />
