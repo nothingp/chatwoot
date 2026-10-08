@@ -19,6 +19,26 @@
 - **rbenv setup**: Before running any `bundle` or `rspec` commands, init rbenv in your shell (`eval "$(rbenv init -)"`) so the correct Ruby/Bundler versions are used
 - Always prefer `bundle exec` for Ruby CLI tasks (rspec, rake, rubocop, etc.)
 
+## Deploying
+
+This fork builds its own Chatwoot image and runs it at `32.236.75.213:81` — an
+isolated comparison instance, containers prefixed `chatwoot-upstream-*`.
+
+It does **not** run the official `chatwoot/chatwoot` image. That image ships frontend
+assets compiled from *its own* commit, so pointing it at this repo's code leaves the
+backend and frontend out of sync — which 500s the whole Super Admin panel.
+
+```
+push origin develop  →  GitHub Actions builds & pushes ghcr.io/nothingp/chatwoot:develop
+                     →  deploy/upstream-comparison/deploy.sh
+```
+
+- Image build: `.github/workflows/publish_fork_image.yml` (EE edition, linux/amd64, GHA cache). Any branch can be built via manual dispatch.
+- Deploy: `deploy/upstream-comparison/deploy.sh` — pulls and recreates. `--status` shows what is running; pass a `sha-xxxxxxxx` tag to pin.
+- Code changes need a push and a rebuild. There is no hot reload and no bind mount — do not hand-edit files inside the container.
+- **Read `deploy/upstream-comparison/README.md` before touching the compose file.** It covers the subscription-check block, why `docker compose` on that host needs `sudo`, and the reproducibility rules.
+- This pipeline targets the comparison instance only — it is not the production deploy path.
+
 ## Code Style
 
 - **Ruby**: Follow RuboCop rules (150 character max line length)

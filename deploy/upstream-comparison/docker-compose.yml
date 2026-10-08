@@ -1,0 +1,116 @@
+# 第二个 Chatwoot（上游对比实例）—— 与现有客服系统完全隔离
+#
+# 由上游 stock 文件改造而来：
+#   /Users/zhoujundi/Repo/esim/chatwoot/docker-compose.production.yaml
+#
+# 生产机安装位置：/opt/chatwoot-upstream/docker-compose.yml
+# 刻意使用独立的项目名 / 网络 / 命名卷，不与 chatwoot-anythingllm-suite 共享任何东西。
+
+name: chatwoot-upstream
+
+x-chatwoot-base: &chatwoot-base
+  # ★ 自建镜像，从本仓库的 develop 构建（GitHub Actions → GHCR）。
+  #
+  #   为什么不用官方 chatwoot/chatwoot：本实例要跑本仓库的代码。曾经试过把工作树
+  #   bind mount 进容器 —— 结果是后端来自本仓库、前端产物来自官方镜像，
+  #   Super Admin 因为缺 entrypoints/superadmin.scss 整片 500。
+  #   自建镜像让前后端来自同一次构建，版本天然一致。
+  #
+  #   构建：`.github/workflows/publish_fork_image.yml`
+  #         （推 develop 自动触发；或在 Actions 页面手动 Run workflow 任选分支）
+  #   升级：`deploy/upstream-comparison/deploy.sh`
+  #
+  #   `:develop` 是浮动 tag，永远指向 develop 最近一次成功构建。
+  #   要可复现就把 tag 换成具体的 `sha-xxxxxxxx`，并把新值追加到 README 的部署记录里。
+  image: ghcr.io/nothingp/chatwoot:develop
+  env_file: .env
+  volumes:
+    - storage_data:/app/storage
+  # ★ 阻断 Chatwoot 的每日订阅检查（Internal::CheckNewVersionsJob → hub.2.chatwoot.com/ping）。
+  #   不通时 ChatwootHub.sync_with_hub 返回 nil，enterprise 的 update_plan_info
+  #   直接 return，INSTALLATION_PRICING_PLAN 与 premium feature 都不会被重置。
+  #
+  #   为什么是挡域名而不是删 schedule.yml 里的定时任务：
+  #   app/controllers/super_admin/settings_controller.rb 里有
+  #   `Internal::CheckNewVersionsJob.perform_now` —— 点开 Super Admin → Settings
+  #   就会同步触发一次同样的重置，跟 cron 无关。挡域名两条入口一起挡。
+  #   （DISABLE_TELEMETRY 也没用，它只影响 metrics 上报，/ping 照发。）
+  extra_hosts:
+    - 'hub.2.chatwoot.com:127.0.0.1'
+  restart: unless-stopped
+
+services:
+
+  rails:
+    <<: *chatwoot-base
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # 只绑宿主环回，绝不对外；对外由 nginx :81 反代。
+    # 上游 stock 写的是 127.0.0.1:3000:3000，3000 已被现有 chatwoot 占用。
+    ports:
+      - '127.0.0.1:3002:3000'
+    environment:
+      - NODE_ENV=production
+      - RAILS_ENV=production
+      - INSTALLATION_ENV=docker
+    entrypoint: docker/entrypoints/rails.sh
+    command: ['bundle', 'exec', 'rails', 's', '-p', '3000', '-b', '0.0.0.0']
+    mem_limit: 1536m
+
+  sidekiq:
+    <<: *chatwoot-base
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=production
+      - RAILS_ENV=production
+      - INSTALLATION_ENV=docker
+    command: ['bundle', 'exec', 'sidekiq', '-C', 'config/sidekiq.yml']
+    mem_limit: 1024m
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    # 刻意不 publish 到宿主：只在 compose 网络内可达。
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=chatwoot
+      - POSTGRES_USER=postgres
+      # ★ 上游 stock 这里是硬编码空值 `POSTGRES_PASSWORD=`。由于 compose 规则中
+      #   `environment` 优先级高于 `env_file`，不改成插值的话，在 .env 里设了也不生效。
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d chatwoot']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 1024m
+
+  redis:
+    image: redis:alpine
+    restart: unless-stopped
+    # ★ 上游 stock 的 command 引用了 $REDIS_PASSWORD 却从未定义它，
+    #   结果 requirepass 被设成空串 = 无口令（与生产 Redis 同样的坑）。
+    command: ['sh', '-c', 'redis-server --requirepass "$REDIS_PASSWORD"']
+    env_file: .env
+    # 刻意不 publish 到宿主。
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli --no-auth-warning -a "$$REDIS_PASSWORD" ping | grep -q PONG']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 256m
+
+volumes:
+  storage_data:
+  postgres_data:
+  redis_data:
