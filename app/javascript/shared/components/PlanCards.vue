@@ -16,7 +16,7 @@ const props = defineProps({
 const STAT_ICONS = ['wifi', 'calendar'];
 const ARROW_ICON = 'arrow-right';
 const ICON_SIZE = 16;
-const FLAG_CLASSES = 'h-6 w-6 shrink-0 rounded-full object-cover';
+const FLAG_CLASSES = 'h-4 w-6 shrink-0 rounded-sm object-cover';
 
 const { t } = useI18n();
 
@@ -87,12 +87,15 @@ const alternatives = computed(() => cards.value.slice(1));
         </div>
       </div>
 
+      <!-- `!text-white` is forced on purpose: `.chat-bubble > a` in the widget's _conversation.scss
+           is a (0,1,1) selector and outranks a plain `text-white` utility (0,1,0), which paints the
+           label in the button's own blue. The arrow inherits the colour via `fill="currentColor"`. -->
       <a
         v-if="primary.action.uri"
         :href="primary.action.uri"
         target="_blank"
         rel="noopener nofollow noreferrer"
-        class="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-n-brand px-4 py-2 text-sm font-medium text-white"
+        class="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-n-brand px-4 py-2 text-sm font-medium !text-white"
         data-test-id="plan-card-cta"
       >
         {{ primary.action.text }}
