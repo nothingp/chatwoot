@@ -1,6 +1,6 @@
 # upstream-comparison 实例（32.236.75.213:81）
 
-第二个 Chatwoot，跑**本仓库自己构建的镜像**，用来跟自有客服系统做对比。
+第二个 Chatwoot，跑**从本仓库构建的镜像**，用来跟自有客服系统做对比。
 与生产栈完全隔离（独立项目名 / 网络 / 命名卷，容器前缀 `chatwoot-upstream-*`）。
 
 服务器安装位置：`/opt/chatwoot-upstream/`
@@ -9,48 +9,56 @@
 
 ## 镜像怎么来
 
-不要用官方 `chatwoot/chatwoot`。本实例要跑本仓库的代码，而官方镜像的前端产物是
-**它自己那个 commit** 编译的 —— 曾经把本仓库的工作树 bind mount 进容器，结果后端来自
-本仓库、前端来自官方镜像，Super Admin 因为缺 `entrypoints/superadmin.scss`
-（develop 的 PR #16137 新增）整片 500。自建镜像让前后端来自同一次构建。
+**不用官方 `chatwoot/chatwoot`，也不用 bind mount 源码，也不用 registry。**
+
+原因：官方镜像的前端产物是**它自己那个 commit** 编译的。把本仓库的代码塞给它，
+后端和前端就是两个版本 —— 实测把工作树 bind mount 进容器后，Super Admin 因为
+缺 `entrypoints/superadmin.scss`（develop 的 #16137 新增）**整片 500**。
+自建镜像让前后端来自同一次构建。
 
 ```
-本机改代码  →  git push origin develop
-                │  .github/workflows/publish_fork_image.yml（自动触发）
-                ▼
-             GitHub Actions 构建（linux/amd64，EE 版，带 GHA 缓存）
-                │  docker/build-push-action
-                ▼
-             ghcr.io/nothingp/chatwoot:develop
-                             :sha-xxxxxxxx        ← 同一次构建的固定 tag
-                │  deploy.sh
-                ▼
-服务器 /opt/chatwoot-upstream/  →  docker compose pull && up -d
+./deploy.sh
+  │  DOCKER_HOST=ssh://ubuntu@32.236.75.213
+  │  把本地工作树当构建上下文（含 .git，Dockerfile 要写 .git_sha）
+  ▼
+服务器的 docker daemon 原生构建（x86_64）
+  │  bundle install → pnpm install → assets:precompile
+  ▼
+服务器本地镜像  chatwoot-upstream:<短SHA>
+  │  docker compose up -d
+  ▼
+容器
 ```
 
-workflow 照上游 `publish_ee_docker.yml` 改的：**保留 `enterprise/` 并追加
-`ENV CW_EDITION="ee"`**。（官方 `chatwoot/chatwoot:latest` 就是 EE 镜像；
-`publish_foss_docker.yml` 那份打的是 `latest-ce`。）差别只在：只构建 amd64、
-推 GHCR、加了缓存。
+**为什么在服务器上构建**：本机是 arm64，服务器是 x86_64。在本机构建要 QEMU 模拟，
+Chatwoot 这种体量会慢到不可用。走 `DOCKER_HOST=ssh://` 不需要本地 Docker daemon，
+也不需要经过任何 registry —— 镜像构建完就直接落在服务器的 image store 里。
 
-**任意分支**都可以构建：Actions 页面 → Publish fork image (GHCR) → Run workflow →
-选分支。构建完从该分支的 commit 里挑 `sha-xxxxxxxx` tag 部署。
+**EE 版不需要额外开关**：`ChatwootApp.enterprise?` 只看 `enterprise/` 目录在不在
+（`lib/chatwoot_app.rb`），而本仓库有它。上游 workflow 里那句 `ENV CW_EDITION="ee"`
+只影响给 hub 上报的 `edition` 字段，而 hub 本来就被挡住了。
 
 ---
 
 ## 日常部署
 
 ```bash
-./deploy.sh                # 拉 :develop 最新并重建
-./deploy.sh sha-1a2b3c4    # 切到某个固定构建再重建（写回服务器上的 compose）
-./deploy.sh --status       # 只看当前跑的镜像版本
+./deploy.sh                 # 构建 + 部署（tag = 短 SHA，工作区脏则加 -dirty）
+./deploy.sh --build-only    # 只构建，先验证再部署
+./deploy.sh --status        # 看服务器上现在跑的是哪个镜像、有哪些历史镜像
+./deploy.sh --tag <tag>     # 切到已构建的 tag，不重新构建
 ```
 
-Rails 在 production 下不热重载，所以更新 = 换镜像 + 重建容器。改了代码要走
-**push → 等 Actions → deploy.sh** 这一圈，不像以前挂载那样"存盘即生效"。
-这是为了换来版本一致性付的代价。
+`deploy.sh` 会自动改写服务器上 `docker-compose.yml` 里那行 `image:`。
 
-（`.env` 在服务器上是 `root:root 600`，所以脚本里所有 `docker compose` 都带 `sudo -n`，
+⚠️ **构建跑在生产机上**（那台机器同时跑着客服生产栈）：4 核，可用内存约 5～6G，
+而 vite 构建要 4G 堆。构建期间盯一眼 `free -h`，别让它把生产栈挤 OOM。
+构建约 20–40 分钟，有缓存会快一些。
+
+compose 里写了 `pull_policy: never` —— 本地镜像是唯一来源，拉不到就该直接报错，
+而不是悄悄回退到旧镜像。
+
+（`.env` 在服务器上是 `root:root 600`，所以脚本里 `docker compose` 都带 `sudo -n`，
 否则读不到 `POSTGRES_PASSWORD`。）
 
 ---
@@ -98,13 +106,13 @@ schedule.yml  internal_check_new_versions_job   cron 0 0 * * *
 
 ## 可复现性
 
-`:develop` 是浮动 tag。要在 README 里记下"这个实例当时跑的是哪个构建"，用
-`./deploy.sh --status` 看，或直接固定到 `sha-xxxxxxxx`。
+镜像 tag 是构建时的短 SHA（工作区脏则带 `-dirty`）。想知道线上跑的是哪份代码，
+`./deploy.sh --status` 一看便知。要回到某个历史构建：`./deploy.sh --tag <tag>`。
 
 ---
 
 ## 回滚
 
-`./deploy.sh sha-xxxxxxxx` 切回上一个构建即可。
-原上游 compose 备份在服务器 `/opt/chatwoot-upstream/docker-compose.yml.bak.<日期>`，
-但已经和现在的结构差很多（少了 extra_hosts），只在极端情况下才用它。
+`./deploy.sh --tag <上一个 tag>` 即可 —— 镜像都还在服务器上。
+原上游 compose 备份在 `/opt/chatwoot-upstream/docker-compose.yml.bak.<日期>`，
+但和现在的结构差很多（少了 `extra_hosts` 和 `pull_policy`），只在极端情况下才用它。

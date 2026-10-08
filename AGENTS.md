@@ -24,20 +24,24 @@
 This fork builds its own Chatwoot image and runs it at `32.236.75.213:81` — an
 isolated comparison instance, containers prefixed `chatwoot-upstream-*`.
 
-It does **not** run the official `chatwoot/chatwoot` image. That image ships frontend
-assets compiled from *its own* commit, so pointing it at this repo's code leaves the
-backend and frontend out of sync — which 500s the whole Super Admin panel.
+It does **not** run the official `chatwoot/chatwoot` image, and it does **not**
+bind-mount the source tree. The official image ships frontend assets compiled from
+*its own* commit, so pointing it at this repo's code leaves the backend and frontend
+out of sync — which 500s the whole Super Admin panel.
 
-```
-push origin develop  →  GitHub Actions builds & pushes ghcr.io/nothingp/chatwoot:develop
-                     →  deploy/upstream-comparison/deploy.sh
+```bash
+deploy/upstream-comparison/deploy.sh           # build + deploy
+deploy/upstream-comparison/deploy.sh --status  # what's running
 ```
 
-- Image build: `.github/workflows/publish_fork_image.yml` (EE edition, linux/amd64, GHA cache). Any branch can be built via manual dispatch.
-- Deploy: `deploy/upstream-comparison/deploy.sh` — pulls and recreates. `--status` shows what is running; pass a `sha-xxxxxxxx` tag to pin.
-- Code changes need a push and a rebuild. There is no hot reload and no bind mount — do not hand-edit files inside the container.
-- **Read `deploy/upstream-comparison/README.md` before touching the compose file.** It covers the subscription-check block, why `docker compose` on that host needs `sudo`, and the reproducibility rules.
-- This pipeline targets the comparison instance only — it is not the production deploy path.
+`deploy.sh` builds the image **on the server** from this working tree (it drives the
+remote Docker daemon over SSH), so there is no registry and nothing to push. Frontend
+and backend come from one build at one commit, tagged with the short SHA.
+
+- Never hand-edit files inside the container, and never point this instance back at the official image.
+- Builds take 20–40 minutes on that 4-core box and compete with the production stack for memory. Use `--build-only` to build and verify before switching.
+- **Read `deploy/upstream-comparison/README.md` before touching the compose file.** It covers the subscription-check block, why `docker compose` on that host needs `sudo`, and how to roll back.
+- This targets the comparison instance only — it is not the production deploy path.
 
 ## Code Style
 
