@@ -44,6 +44,12 @@ Rails.application.routes.draw do
   end
 
   get '/health', to: 'health#show'
+
+  # Internal endpoint called by Captain custom tools. Deliberately outside /public/api: those
+  # routes are CORS-open and this one must never be reachable from a browser.
+  namespace :internal, defaults: { format: 'json' } do
+    post 'captain_tools', to: 'captain_tools#create'
+  end
   get '/robots.txt', to: 'robots#show', format: false
   get '/api', to: 'api#index'
   namespace :api, defaults: { format: 'json' } do

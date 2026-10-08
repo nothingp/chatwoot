@@ -695,4 +695,10 @@
   description: 'User orders path, used by later phases. Default: /v2/esim/user/orders'
   value: '/v2/esim/user/orders'
   locked: false
+- name: MOBILE_CHAT_INTERNAL_TOOL_TOKEN
+  display_title: 'Mobile Chat Internal Tool Token'
+  description: 'Shared secret the Captain custom tools send as X-Internal-Token to /internal/captain_tools. Generate one with SecureRandom.hex(32).'
+  value:
+  locked: false
+  type: secret
 ## ------ End of mobile chat ------ ##

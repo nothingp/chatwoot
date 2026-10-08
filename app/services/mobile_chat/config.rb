@@ -18,13 +18,20 @@ module MobileChat::Config
 
   # A malformed base yields a URL SafeFetch rejects, which NovyroClient rescues into nil, which
   # silently downgrades every member to an anonymous guest. Raise instead.
-  def self.novyro_user_info_url
+  def self.novyro_base_url
     base = value('NOVYRO_API_BASE_URL').chomp('/')
-    url = "#{base}/#{value('NOVYRO_USER_INFO_PATH').delete_prefix('/')}"
 
-    return url if absolute_http_url?(url)
+    return base if absolute_http_url?(base)
 
     raise(CustomExceptions::MobileChat::NotConfigured, 'NOVYRO_API_BASE_URL')
+  end
+
+  def self.novyro_url(path)
+    "#{novyro_base_url}/#{path.to_s.delete_prefix('/')}"
+  end
+
+  def self.novyro_user_info_url
+    novyro_url(value('NOVYRO_USER_INFO_PATH'))
   end
 
   def self.absolute_http_url?(url)

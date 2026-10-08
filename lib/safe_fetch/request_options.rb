@@ -11,10 +11,11 @@ class SafeFetch::RequestOptions
     http_basic_authentication: nil,
     allowed_content_type_prefixes: SafeFetch::DEFAULT_ALLOWED_CONTENT_TYPE_PREFIXES,
     allowed_content_types: SafeFetch::DEFAULT_ALLOWED_CONTENT_TYPES,
-    validate_content_type: true
+    validate_content_type: true,
+    allowed_private_network_origin: nil
   }.freeze
 
-  attr_reader :allowed_content_type_prefixes, :allowed_content_types, :body, :headers,
+  attr_reader :allowed_content_type_prefixes, :allowed_content_types, :allowed_private_network_origin, :body, :headers,
               :http_basic_authentication, :method, :open_timeout, :read_timeout, :resolver, :sensitive_headers, :uri, :url
 
   def initialize(url:, **options)
@@ -33,6 +34,7 @@ class SafeFetch::RequestOptions
     @allowed_content_type_prefixes = Array(config[:allowed_content_type_prefixes])
     @allowed_content_types = Array(config[:allowed_content_types])
     @validate_content_type = config[:validate_content_type]
+    @allowed_private_network_origin = config[:allowed_private_network_origin].presence
   end
 
   def effective_max_bytes
@@ -56,6 +58,16 @@ class SafeFetch::RequestOptions
 
   def validate_content_type?
     @validate_content_type
+  end
+
+  # True only for the exact origin the caller allowed. Used by custom tools that legitimately
+  # call an internal address on this host, which SsrfFilter would otherwise block as private.
+  def allows_private_network_origin?(request_url)
+    return false if allowed_private_network_origin.blank?
+
+    same_origin?(URI.parse(request_url), URI.parse(allowed_private_network_origin))
+  rescue URI::InvalidURIError
+    false
   end
 
   private

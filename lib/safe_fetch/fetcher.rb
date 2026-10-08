@@ -44,9 +44,16 @@ class SafeFetch::Fetcher
   end
 
   def perform_request(&)
-    return SafeFetch::PrivateNetworkRequest.new(options).perform(&) if SafeFetch.allow_private_network?
+    return SafeFetch::PrivateNetworkRequest.new(options).perform(&) if private_network_request?
 
     SsrfFilter.public_send(options.method, options.url, **options.request_options, &)
+  end
+
+  # SsrfFilter blocks private addresses so a fetched URL cannot reach inside the network. A custom
+  # tool may legitimately target this host, so the caller can allow one origin explicitly -- that
+  # is deliberately narrower than the global SAFE_FETCH_ALLOW_PRIVATE_NETWORK switch.
+  def private_network_request?
+    SafeFetch.allow_private_network? || options.allows_private_network_origin?(options.url)
   end
 
   def validate_content_type!(content_type)
