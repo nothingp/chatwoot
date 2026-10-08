@@ -24,6 +24,10 @@ class MobileChat::CaptainToolkit
   # unbounded passthrough would blow up the model's context.
   MAX_ITEMS = 20
   MAX_STRING = 400
+  # The widget renders every card action as a full-width button, so a card with a dozen SKUs is a wall.
+  CARD_LIMIT = 5
+  CARD_ACTION_LIMIT = 4
+  UNLIMITED_LABEL = 'Unlimited'.freeze
 
   # The raw order payload also carries QR codes, full ICCIDs and internal supplier fields.
   # Whitelist instead of passing it through: this is rendered into the customer's prompt.
@@ -117,6 +121,16 @@ class MobileChat::CaptainToolkit
     return { ok: false, error: UPSTREAM_UNAVAILABLE } unless product.is_a?(Hash)
 
     { ok: true, product: present_product(product, product_id) }
+  end
+
+  # Cards the widget renders natively (shared/components/ChatCard.vue). The message validator allows
+  # only title, description, media_url and actions on an item and requires actions, so one card per
+  # product with its SKUs as buttons is the shape that fits. These are pure data: the tool decides
+  # whether and where to post them.
+  def plan_cards(result)
+    return [] unless result[:ok]
+
+    Array(result[:plans]).first(CARD_LIMIT).map { |plan| plan_card(plan) }
   end
 
   private
@@ -276,6 +290,42 @@ class MobileChat::CaptainToolkit
       price: value(sku, :price),
       labels: Array(value(sku, :sku_labels, :skuLabels)).first(MAX_ITEMS)
     }.compact.transform_values { |item| scalar(item) }
+  end
+
+  # --- Card building ---
+
+  def plan_card(plan)
+    skus = Array(plan[:skus]).first(CARD_ACTION_LIMIT)
+    {
+      title: plan[:name].to_s,
+      description: skus.map { |sku| sku_label(sku) }.join(' · '),
+      media_url: plan[:image].to_s,
+      actions: skus.map { |sku| sku_action(plan, sku) }
+    }
+  end
+
+  def sku_label(sku)
+    size = sku[:data_unlimited] ? UNLIMITED_LABEL : "#{sku[:data_size_value]}#{sku[:data_size_unit]}"
+    days = "#{sku[:billing_period_days]} days" if sku[:billing_period_days].present?
+    [size, days, price_label(sku[:price])].compact.join(' · ')
+  end
+
+  def price_label(prices)
+    return if prices.blank?
+
+    priced = hash(prices)
+    amount = priced['USD'] || priced.values.first
+    "USD #{amount}"
+  end
+
+  # The button hands this payload to the host page, which owns the purchase flow. catalog_env is
+  # only included when the session recorded one, since the client validates the keys it receives.
+  def sku_action(plan, sku)
+    payload = { goods_id: plan[:product_id], sku_id: sku[:sku_id] }
+    environment = contact&.custom_attributes&.dig('catalog_environment').presence
+    payload[:catalog_env] = environment if environment
+
+    { text: sku_label(sku), type: 'postback', payload: payload.to_json }
   end
 
   def hash(value)

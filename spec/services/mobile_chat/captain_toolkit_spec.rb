@@ -209,6 +209,56 @@ RSpec.describe MobileChat::CaptainToolkit do
     end
   end
 
+  describe '#plan_cards' do
+    let(:result) do
+      {
+        ok: true,
+        plans: [
+          {
+            product_id: 13,
+            name: 'Japan',
+            image: 'https://cdn/JP.svg',
+            skus: [
+              { sku_id: 165, data_size_value: '5', data_size_unit: 'GB', billing_period_days: 7,
+                price: { 'USD' => '9.99' } },
+              { sku_id: 930, data_unlimited: true, billing_period_days: 7, price: { 'USD' => '35.99' } }
+            ]
+          }
+        ]
+      }
+    end
+
+    it 'builds one card per plan, with only the keys the message validator allows' do
+      card = toolkit.plan_cards(result).first
+
+      # Anything beyond these four keys fails ContentAttributeValidator on the message.
+      expect(card.keys).to match_array(%i[title description media_url actions])
+      expect(card[:title]).to eq('Japan')
+      expect(card[:media_url]).to eq('https://cdn/JP.svg')
+      expect(card[:description]).to eq('5GB · 7 days · USD 9.99 · Unlimited · 7 days · USD 35.99')
+    end
+
+    it 'turns each SKU into a postback button carrying the purchase payload' do
+      actions = toolkit.plan_cards(result).first[:actions]
+
+      expect(actions.map { |action| action[:text] }).to eq(['5GB · 7 days · USD 9.99', 'Unlimited · 7 days · USD 35.99'])
+      expect(actions.map { |action| action[:type] }).to eq(%w[postback postback])
+      expect(JSON.parse(actions.first[:payload])).to eq('goods_id' => 13, 'sku_id' => 165)
+    end
+
+    it 'returns nothing for a failed result' do
+      expect(toolkit.plan_cards({ ok: false, error: 'nope' })).to eq([])
+    end
+
+    it 'passes catalog_env through only when the contact recorded one' do
+      contact.update!(custom_attributes: contact.custom_attributes.merge('catalog_environment' => 'prod'))
+
+      action = described_class.new(conversation).plan_cards(result).first[:actions].first
+
+      expect(JSON.parse(action[:payload])).to eq('goods_id' => 13, 'sku_id' => 165, 'catalog_env' => 'prod')
+    end
+  end
+
   describe 'without a conversation' do
     # The Playground passes no conversation in the tool context. The product tools need no
     # identity, so they must still work there.

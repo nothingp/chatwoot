@@ -11,4 +11,22 @@ class Captain::Tools::MobileChatTool < Captain::Tools::BasePublicTool
   def toolkit(tool_context)
     MobileChat::CaptainToolkit.new(find_conversation(tool_context.state))
   end
+
+  # Cards render natively in the widget, but they need a conversation to live in. The Playground
+  # has none, so a tool that cannot post still returns its JSON for the model to read out.
+  def post_cards(tool_context, cards)
+    return false if cards.blank?
+
+    conversation = find_conversation(tool_context.state)
+    return false if conversation.blank?
+
+    conversation.messages.create!(
+      account_id: conversation.account_id,
+      inbox_id: conversation.inbox_id,
+      message_type: :outgoing,
+      content_type: :cards,
+      content_attributes: { items: cards }
+    )
+    true
+  end
 end
