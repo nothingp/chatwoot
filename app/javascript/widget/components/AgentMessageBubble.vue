@@ -52,7 +52,7 @@ export default {
       return this.contentType === 'cards';
     },
     isNovyroPlanGroup() {
-      return this.messageContentAttributes.variant === 'novyro_plan_group';
+      return this.messageContentAttributes?.variant === 'novyro_plan_group';
     },
     isOptions() {
       return this.contentType === 'input_select';

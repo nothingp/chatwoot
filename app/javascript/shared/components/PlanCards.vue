@@ -17,7 +17,6 @@ const STAT_ICONS = ['wifi', 'calendar'];
 const ARROW_ICON = 'arrow-right';
 const ICON_SIZE = 16;
 const FLAG_CLASSES = 'h-6 w-6 shrink-0 rounded-full object-cover';
-const ALTERNATIVES_HEADING_KEY = 'CARD.ALTERNATIVES';
 
 const { t } = useI18n();
 
@@ -35,6 +34,8 @@ const cards = computed(() =>
   }))
 );
 const primary = computed(() => cards.value[0]);
+// The alternatives are keyed by position, not by checkout uri: nothing in the contract makes two
+// cards' uris differ, and a repeated key is not a key.
 const alternatives = computed(() => cards.value.slice(1));
 </script>
 
@@ -108,12 +109,12 @@ const alternatives = computed(() => cards.value.slice(1));
         class="mb-1 text-xs text-n-slate-11"
         data-test-id="plan-cards-alternatives-heading"
       >
-        {{ t(ALTERNATIVES_HEADING_KEY) }}
+        {{ t('CARD.ALTERNATIVES') }}
       </p>
       <div class="grid grid-cols-2 gap-2">
         <a
-          v-for="alternative in alternatives"
-          :key="alternative.action.uri"
+          v-for="(alternative, index) in alternatives"
+          :key="index"
           :href="alternative.action.uri"
           target="_blank"
           rel="noopener nofollow noreferrer"
