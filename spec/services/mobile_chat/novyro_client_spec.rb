@@ -71,4 +71,10 @@ RSpec.describe MobileChat::NovyroClient do
 
     expect(client.user_info).to be_nil
   end
+
+  it 'propagates a missing configuration instead of degrading to anonymous' do
+    InstallationConfig.where(name: 'NOVYRO_API_KEY').delete_all
+
+    expect { client.user_info }.to raise_error(CustomExceptions::MobileChat::NotConfigured)
+  end
 end
