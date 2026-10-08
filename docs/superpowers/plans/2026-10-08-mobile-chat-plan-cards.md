@@ -18,6 +18,7 @@
   - 任何形如 `bundle exec rspec …` 的步骤都要注明「需在有工具链的环境执行」。
 - 字段上限与形状（取自 spec §2，校验器按这些值实现）：`title` ≤160、`description` ≤500、`badge` ≤40、fact `label` ≤40 / `value` ≤120、action `text` ≤120、uri ≤2048；`media_url` 必须是空串；items 1..5；facts 1..3，icon ∈ `wifi|calendar|wallet`；actions 恰好 1 个且 `type == "link"`；uri path 恰好 `/app-actions/checkout`，query 恰好 `{goods_id, sku_id, catalog_env}`，`catalog_env ∈ {dev,test,prod}`。
 - **不发** `country_image`（可选字段，App 1.0.34 不读它，发了只会多一个校验失败面）与 `customer_support_content_sha256`；**不做** `novyro_web_plan_list` 变体。
+  - ⚠️ **已反转**：`851b674278` / `a5aea242da` 之后 widget 自己渲染国旗，`country_image` 变成卡片上要发的可选键（值可以是空串，见 spec §2）。此条只记录当时的决定，以代码为准。
 - 文案字典只搬卡片用到的 10 个键：`primary/alternative/data/unlimited/validity/dayUnit/price/cta/description/plan`。不动 `config/locales/**` 与 `config/initializers/languages.rb`。
 - 只改本仓库；不改 `esimgo-mobile` / `esimgo-web`（客户端待办见 spec §7）。
 - 提交信息用 Conventional Commits、英文主题，不带 Claude 署名。
@@ -475,6 +476,8 @@ end
     fact_label: 40, fact_value: 120, action_text: 120, action_uri: 2048
   }.freeze
 ```
+
+> ⚠️ **已移走**：这些常量现在住在 `app/models/concerns/novyro_plan_contract.rb`，由校验器和 `MobileChat::CaptainToolkit` 共用；`country_image: 2048` 后来也加进了 `NOVYRO_PLAN_TEXT_LIMITS`。下面这段只是当时的写法。
 
 `validate` 的 `when 'cards'`：
 
@@ -1086,6 +1089,8 @@ class Captain::Tools::CreatePurchaseActionTool < Captain::Tools::MobileChatTool
   end
 end
 ```
+
+> ⚠️ **已改**：`f7962ac286` 把返回串换成 "Posted N plan cards to the customer, **above this reply** …"——卡片先于回复落库，说 "see below" 是客户一眼能看出错的措辞。
 
 - [ ] **Step 4: `recommend_plans` 只回数据**
 
