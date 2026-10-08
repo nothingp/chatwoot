@@ -296,10 +296,11 @@ class MobileChat::CaptainToolkit
 
   def plan_card(plan)
     skus = Array(plan[:skus]).first(CARD_ACTION_LIMIT)
+    # No media_url: the card is a fixed-size bubble, and a country image of arbitrary aspect
+    # ratio makes every card a different height and width. The title carries the destination.
     {
       title: plan[:name].to_s,
       description: skus.map { |sku| sku_label(sku) }.join(' · '),
-      media_url: plan[:image].to_s,
       actions: skus.map { |sku| sku_action(plan, sku) }
     }
   end
