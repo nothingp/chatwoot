@@ -136,6 +136,16 @@ RSpec.describe MobileChat::CaptainToolkit do
   end
 
   describe '#recommend_plans' do
+    it 'sends the customer language and currency upstream' do
+      contact.update!(custom_attributes: contact.custom_attributes.merge('locale' => 'zh_CN', 'currency' => 'CNY'))
+      stub_request(:get, recommendations_url)
+        .with(query: { country_code: 'JP', billing_period: '7' },
+              headers: { 'lang' => 'zh_CN', 'currency' => 'CNY' })
+        .to_return(status: 200, body: { code: 1, data: { recommendations: [] } }.to_json)
+
+      expect(described_class.new(conversation).recommend_plans({ country_code: 'JP', billing_period: 7 })[:ok]).to be(true)
+    end
+
     it 'rejects a call without both required parameters, without calling Novyro' do
       result = toolkit.recommend_plans({ country_code: 'JP' })
 
@@ -209,53 +219,108 @@ RSpec.describe MobileChat::CaptainToolkit do
     end
   end
 
-  describe '#plan_cards' do
-    let(:result) do
-      {
-        ok: true,
-        plans: [
-          {
-            product_id: 13,
-            name: 'Japan',
-            image: 'https://cdn/JP.svg',
-            skus: [
-              { sku_id: 165, data_size_value: '5', data_size_unit: 'GB', billing_period_days: 7,
-                price: { 'USD' => '9.99' } },
-              { sku_id: 930, data_unlimited: true, billing_period_days: 7, price: { 'USD' => '35.99' } }
-            ]
-          }
+  describe '#purchase_actions' do
+    let(:product_details_url) { 'https://api.example.com/api/v2/esim/product/details' }
+    let(:contact) do
+      create(:contact, account: account, identifier: 'member_12345',
+                       custom_attributes: { 'app_token' => 'member-token', 'locale' => 'zh_CN',
+                                            'currency' => 'USD', 'catalog_environment' => 'prod' })
+    end
+    let(:params) { { 'product_id' => '13', 'sku_ids' => %w[13055 13056], 'reason' => '7天日本专属行程，10GB总量。', 'label' => '日本 7日 10GB 总量套餐' } }
+
+    # The test env has no FRONTEND_URL, and the checkout uri is built from it; the repo helper is
+    # the sanctioned way to set env in specs.
+    around do |example|
+      with_modified_env(FRONTEND_URL: 'https://app.example.com') { example.run }
+    end
+
+    before do
+      stub_request(:get, product_details_url)
+        .with(query: { product_id: '13' }, headers: { 'lang' => 'zh_CN', 'currency' => 'USD' })
+        .to_return(
+          status: 200,
+          body: {
+            code: 1,
+            data: {
+              product_id: 13,
+              name: '日本',
+              country_code: 'JP',
+              country_image: 'https://cdn/JP.svg',
+              skus: [
+                { id: 13_055, data_size_gb: '10', billing_period_days: 7, price: { 'USD' => '16.99' } },
+                { id: 13_056, data_size_gb: '0', data_size_is_unlimited: true, billing_period_days: 7, price: { 'USD' => '35.99' } }
+              ]
+            }
+          }.to_json
+        )
+    end
+
+    it 'builds one card per sku, primary first, with the copy for the customer locale' do
+      result = toolkit.purchase_actions(params)
+
+      expect(result[:ok]).to be(true)
+      primary, alternative = result[:cards]
+      expect(primary[:title]).to eq('日本')
+      expect(primary[:badge]).to eq('最佳匹配')
+      expect(primary[:description]).to eq('7天日本专属行程，10GB总量。')
+      expect(primary[:media_url]).to eq('')
+      expect(alternative[:badge]).to eq('备选方案')
+      expect(alternative[:description]).to eq('已核实套餐方案。')
+    end
+
+    it 'takes facts from the upstream sku' do
+      facts = toolkit.purchase_actions(params)[:cards].first[:facts]
+
+      expect(facts).to eq(
+        [
+          { icon: 'wifi', label: '流量', value: '10 GB' },
+          { icon: 'calendar', label: '有效期', value: '7天' },
+          { icon: 'wallet', label: '价格', value: 'USD 16.99' }
         ]
-      }
+      )
     end
 
-    it 'builds one card per plan, with only the keys the message validator allows' do
-      card = toolkit.plan_cards(result).first
+    it 'labels an unlimited sku with the copied wording' do
+      facts = toolkit.purchase_actions(params)[:cards].last[:facts]
 
-      # Anything beyond these keys fails ContentAttributeValidator on the message.
-      expect(card.keys).to match_array(%i[title description actions])
-      expect(card[:title]).to eq('Japan')
-      # The cheapest price, not a repeat of every SKU -- the buttons carry those.
-      expect(card[:description]).to eq('from USD 9.99')
+      expect(facts.first).to eq(icon: 'wifi', label: '流量', value: '无限流量')
     end
 
-    it 'turns each SKU into a postback button carrying the purchase payload' do
-      actions = toolkit.plan_cards(result).first[:actions]
+    it 'builds the checkout uri from the frontend url and the recorded catalog environment' do
+      action = toolkit.purchase_actions(params)[:cards].first[:actions].first
 
-      expect(actions.map { |action| action[:text] }).to eq(['5GB · 7 days · USD 9.99', 'Unlimited · 7 days · USD 35.99'])
-      expect(actions.map { |action| action[:type] }).to eq(%w[postback postback])
-      expect(JSON.parse(actions.first[:payload])).to eq('goods_id' => 13, 'sku_id' => 165)
+      expect(action[:type]).to eq('link')
+      expect(action[:text]).to eq('日本 7日 10GB 总量套餐')
+      expect(action[:uri]).to eq('https://app.example.com/app-actions/checkout?goods_id=13&sku_id=13055&catalog_env=prod')
     end
 
-    it 'returns nothing for a failed result' do
-      expect(toolkit.plan_cards({ ok: false, error: 'nope' })).to eq([])
+    it 'falls back to the shipped copy when the model text carries a link' do
+      result = toolkit.purchase_actions(params.merge('reason' => 'see https://novyro.com'))
+
+      expect(result[:cards].first[:description]).to eq('已核实套餐方案。')
     end
 
-    it 'passes catalog_env through only when the contact recorded one' do
-      contact.update!(custom_attributes: contact.custom_attributes.merge('catalog_environment' => 'prod'))
+    it 'refuses a sku that is not in the product' do
+      result = toolkit.purchase_actions(params.merge('sku_ids' => %w[13055 99999]))
 
-      action = described_class.new(conversation).plan_cards(result).first[:actions].first
+      expect(result[:ok]).to be(false)
+      expect(result[:error]).to be_present
+    end
 
-      expect(JSON.parse(action[:payload])).to eq('goods_id' => 13, 'sku_id' => 165, 'catalog_env' => 'prod')
+    it 'refuses ids that are not numeric' do
+      result = toolkit.purchase_actions(params.merge('sku_ids' => ['../etc']))
+
+      expect(result[:ok]).to be(false)
+    end
+
+    it 'takes at most five skus' do
+      result = toolkit.purchase_actions(params.merge('sku_ids' => Array.new(6) { '13055' }))
+
+      expect(result[:cards].size).to eq(5)
+    end
+
+    it 'refuses an empty sku list' do
+      expect(toolkit.purchase_actions(params.merge('sku_ids' => []))[:ok]).to be(false)
     end
   end
 

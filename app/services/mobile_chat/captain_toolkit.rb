@@ -24,10 +24,9 @@ class MobileChat::CaptainToolkit
   # unbounded passthrough would blow up the model's context.
   MAX_ITEMS = 20
   MAX_STRING = 400
-  # The widget renders every card action as a full-width button, so a card with a dozen SKUs is a wall.
+  # One call posts one card per SKU, and the widget stacks them full width, so a dozen of them
+  # is a wall. This is also the message validator's own item limit.
   CARD_LIMIT = 5
-  CARD_ACTION_LIMIT = 4
-  UNLIMITED_LABEL = 'Unlimited'.freeze
 
   # The raw order payload also carries QR codes, full ICCIDs and internal supplier fields.
   # Whitelist instead of passing it through: this is rendered into the customer's prompt.
@@ -84,7 +83,7 @@ class MobileChat::CaptainToolkit
     period = param(params, :billing_period).to_i
     return { ok: false, error: 'country_code (ISO 3166-1 alpha-2) and billing_period (days) are required.' } if country.blank? || period <= 0
 
-    response = fetch_json(RECOMMENDATIONS_PATH, query: { country_code: country, billing_period: period })
+    response = fetch_catalog_json(RECOMMENDATIONS_PATH, query: { country_code: country, billing_period: period })
     return response if response[:ok] == false
 
     plans = Array(response.dig(:data, 'recommendations'))
@@ -95,7 +94,7 @@ class MobileChat::CaptainToolkit
     keyword = param(params, :keyword).to_s.strip
     return { ok: false, error: 'keyword is required.' } if keyword.blank?
 
-    response = fetch_json(PRODUCT_SEARCH_PATH, query: { keyword: keyword })
+    response = fetch_catalog_json(PRODUCT_SEARCH_PATH, query: { keyword: keyword })
     return response if response[:ok] == false
 
     data = response[:data] || {}
@@ -114,7 +113,7 @@ class MobileChat::CaptainToolkit
     product_id = param(params, :product_id).to_s.strip
     return { ok: false, error: 'product_id is required.' } if product_id.blank?
 
-    response = fetch_json(PRODUCT_DETAILS_PATH, query: { product_id: product_id })
+    response = fetch_catalog_json(PRODUCT_DETAILS_PATH, query: { product_id: product_id })
     return response if response[:ok] == false
 
     product = response.dig(:data, 'product') || response[:data]
@@ -123,14 +122,23 @@ class MobileChat::CaptainToolkit
     { ok: true, product: present_product(product, product_id) }
   end
 
-  # Cards the widget renders natively (shared/components/ChatCard.vue). The message validator allows
-  # only title, description, media_url and actions on an item and requires actions, so one card per
-  # product with its SKUs as buttons is the shape that fits. These are pure data: the tool decides
-  # whether and where to post them.
-  def plan_cards(result)
-    return [] unless result[:ok]
+  # The model decides which SKUs to recommend; the numbers, the copy and the checkout link come
+  # from here. One call posts one message: order is rank, because the app renders the first item
+  # as the main card and the rest as alternatives.
+  def purchase_actions(params)
+    product_id = param(params, :product_id).to_s
+    sku_ids = Array(param(params, :sku_ids)).map(&:to_s).first(CARD_LIMIT)
+    invalid = purchase_request_error(product_id, sku_ids)
+    return { ok: false, error: invalid } if invalid
 
-    Array(result[:plans]).first(CARD_LIMIT).map { |plan| plan_card(plan) }
+    response = fetch_catalog_json(PRODUCT_DETAILS_PATH, query: { product_id: product_id })
+    return response if response[:ok] == false
+
+    product = present_product(response.dig(:data, 'product') || response[:data], product_id)
+    skus = selected_skus(product, sku_ids)
+    return { ok: false, error: 'Those sku_ids are not part of that product.' } if skus.any?(&:nil?)
+
+    { ok: true, cards: purchase_cards(product, skus, params) }
   end
 
   private
@@ -147,17 +155,17 @@ class MobileChat::CaptainToolkit
   end
 
   # → { ok: true, data: Hash } | { ok: false, error: String }
-  def fetch_json(path, query: {}, token: nil)
+  def fetch_json(path, query: {}, token: nil, headers: {})
     url = MobileChat::Config.novyro_url(path)
     url = "#{url}?#{URI.encode_www_form(query)}" if query.present?
 
-    headers = MobileChat::Config.novyro_headers
-    headers['token'] = token if token.present?
+    request_headers = MobileChat::Config.novyro_headers.merge(headers)
+    request_headers['token'] = token if token.present?
 
     body = +''
     SafeFetch.fetch(
       url,
-      headers: headers,
+      headers: request_headers,
       sensitive_headers: %w[token x-api-key],
       open_timeout: OPEN_TIMEOUT,
       read_timeout: READ_TIMEOUT,
@@ -179,6 +187,13 @@ class MobileChat::CaptainToolkit
   rescue SafeFetch::Error, JSON::ParserError => e
     Rails.logger.warn("[MobileChat] captain tool call failed: #{e.class}: #{e.message}")
     { ok: false, error: UPSTREAM_UNAVAILABLE }
+  end
+
+  # Product reads carry the customer's language and currency as headers, which is how upstream
+  # decides the copy and the price it answers with (the bridge did the same via publicHeaders).
+  # Orders are read with the member token and keep the plain service headers.
+  def fetch_catalog_json(path, query: {})
+    fetch_json(path, query: query, headers: { 'lang' => client_locale, 'currency' => client_currency })
   end
 
   def order_collection(data)
@@ -294,47 +309,104 @@ class MobileChat::CaptainToolkit
 
   # --- Card building ---
 
-  def plan_card(plan)
-    skus = Array(plan[:skus]).first(CARD_ACTION_LIMIT)
-    # No media_url: the card is a fixed-size bubble, and a country image of arbitrary aspect
-    # ratio makes every card a different height and width. The title carries the destination.
+  # The model picks the ids, so they are untrusted input: answer without calling upstream when
+  # they are missing or not ids at all.
+  def purchase_request_error(product_id, sku_ids)
+    return 'product_id and one to five sku_ids are required.' if product_id.blank? || sku_ids.empty?
+    return 'product_id and sku_ids must be numeric ids.' unless [product_id, *sku_ids].all? { |id| checkout_id?(id) }
+
+    nil
+  end
+
+  # The message validator wants exactly these six keys, so `media_url` is present and empty
+  # rather than omitted: the card is a fixed-size bubble and a country image of arbitrary aspect
+  # ratio would size it. The title carries the destination.
+  def purchase_card(product, sku, copy, primary:, params:)
     {
-      title: plan[:name].to_s,
-      description: from_price_label(skus),
-      actions: skus.map { |sku| sku_action(plan, sku) }
-    }.compact
+      title: product[:name].to_s,
+      description: MobileChat::CardCopy.sanitize_description(primary ? param(params, :reason) : nil, copy['description']),
+      media_url: '',
+      badge: primary ? copy['primary'] : copy['alternative'],
+      facts: purchase_facts(sku, copy),
+      actions: [{
+        type: 'link',
+        text: MobileChat::CardCopy.sanitize_action_text(primary ? param(params, :label) : nil, copy['cta']),
+        uri: checkout_uri(product[:product_id], sku[:sku_id])
+      }]
+    }
   end
 
-  # One anchor price reads better than repeating every SKU, which the buttons already carry.
-  def from_price_label(skus)
-    amounts = skus.filter_map { |sku| hash(sku[:price])['USD'].presence }
-    return if amounts.empty?
-
-    "from USD #{amounts.min_by(&:to_f)}"
+  def purchase_cards(product, skus, params)
+    copy = MobileChat::CardCopy.copy_for(client_locale)
+    skus.each_with_index.map do |sku, index|
+      purchase_card(product, sku, copy, primary: index.zero?, params: params)
+    end
   end
 
-  def sku_label(sku)
-    size = sku[:data_unlimited] ? UNLIMITED_LABEL : "#{sku[:data_size_value]}#{sku[:data_size_unit]}"
-    days = "#{sku[:billing_period_days]} days" if sku[:billing_period_days].present?
-    [size, days, price_label(sku[:price])].compact.join(' · ')
+  # The response is the product's own sku list, so an id the model invented or that belongs to a
+  # different product simply is not found.
+  def selected_skus(product, sku_ids)
+    sku_ids.map { |id| Array(product[:skus]).find { |sku| sku[:sku_id].to_s == id } }
   end
 
-  def price_label(prices)
-    return if prices.blank?
-
-    priced = hash(prices)
-    amount = priced['USD'] || priced.values.first
-    "USD #{amount}"
+  def purchase_facts(sku, copy)
+    [
+      { icon: 'wifi', label: copy['data'], value: data_fact_value(sku, copy) },
+      { icon: 'calendar', label: copy['validity'], value: validity_fact_value(sku, copy) },
+      { icon: 'wallet', label: copy['price'], value: price_fact_value(sku, client_currency) }
+    ].select { |fact| fact[:value].present? }
   end
 
-  # The button hands this payload to the host page, which owns the purchase flow. catalog_env is
-  # only included when the session recorded one, since the client validates the keys it receives.
-  def sku_action(plan, sku)
-    payload = { goods_id: plan[:product_id], sku_id: sku[:sku_id] }
-    environment = contact&.custom_attributes&.dig('catalog_environment').presence
-    payload[:catalog_env] = environment if environment
+  def data_fact_value(sku, copy)
+    return copy['unlimited'] if sku[:data_unlimited]
 
-    { text: sku_label(sku), type: 'postback', payload: payload.to_json }
+    [sku[:data_size_value], sku[:data_size_unit]].compact.join(' ').presence
+  end
+
+  def validity_fact_value(sku, copy)
+    days = sku[:billing_period_days]
+    return if days.blank?
+
+    copy['dayUnit'].sub('{n}', days.to_s)
+  end
+
+  # Upstream prices are a map of currency to amount. Ask for the customer's currency, but label
+  # whatever we end up showing with the currency it actually is.
+  def price_fact_value(sku, currency)
+    prices = hash(sku[:price])
+    key = prices.key?(currency) ? currency : prices.keys.first
+    return if key.blank?
+
+    "#{key} #{format('%.2f', prices[key].to_f)}"
+  end
+
+  # The app opens its own checkout from this path; the website handles the click itself. All three
+  # query terms are required by the message validator, so a missing catalog environment has to
+  # come from deployment config rather than be dropped.
+  def checkout_uri(product_id, sku_id)
+    query = URI.encode_www_form(goods_id: product_id, sku_id: sku_id, catalog_env: catalog_environment)
+    "#{MobileChat::Config.frontend_url}/app-actions/checkout?#{query}"
+  end
+
+  def catalog_environment
+    contact&.custom_attributes&.dig('catalog_environment').presence ||
+      MobileChat::Config.value('NOVYRO_CATALOG_ENVIRONMENT')
+  end
+
+  def checkout_id?(value)
+    value.match?(/\A[1-9][0-9]{0,18}\z/)
+  end
+
+  # The clients send these on every session; upstream rejects a malformed value, and a cosmetic
+  # client bug must not be able to take plan lookup down, so fall back to the documented defaults.
+  def client_locale
+    value = contact&.custom_attributes&.dig('locale').to_s
+    value.match?(/\A[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8})*\z/) ? value : 'en'
+  end
+
+  def client_currency
+    value = contact&.custom_attributes&.dig('currency').to_s.upcase
+    value.match?(/\A[A-Z]{3}\z/) ? value : 'USD'
   end
 
   def hash(value)
