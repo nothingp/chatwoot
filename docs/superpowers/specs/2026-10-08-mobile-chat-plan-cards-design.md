@@ -135,6 +135,8 @@ facts 缺失时 App 会退化成用正则从 `title + description + action label
 
 **位置**：`config/mobile_chat/card_copy.yml`（41 语言，从 `purchaseCopy.js` 整体搬来）+ `app/services/mobile_chat/card_copy.rb`（薄 loader）。回退链照搬 `localeCopy.js`：**精确 appLocale → 语言前缀 → en**；`en` 缺失直接抛错（原实现的注释说得很清楚：缺 en 会把崩溃推迟到远处某个取值点）。
 
+**查表前必须先把客户端给的 locale 规范化**：回退链前面还有一步 `normalizeLocale`（`apps/ai-bridge/src/mobileChat/language.js:207`），把客户端原始值变成本字典所键的 appLocale —— 先 trim、`-`→`_`、小写，再按字典自身的键精确匹配（`zh_hant`→`zh_Hant`、`pt_br`→`pt_BR`），再走语言族（`zh` 带 `hant/tw/hk/mo` 限定取 `zh_Hant`、否则 `zh_CN`；`pt` 取 `pt_BR`，限定为 `pt` 时取 `pt_PT`；`es`+`mx` → `es_MX`；`fr`+`ca` → `fr_CA`），再退到裸语言（`en_GB`→`en`、`de_DE`→`de`，`fil→tl`/`iw→he`/`in→id`/`nb→no`/`nn→no` 这些旧别名也在这步），未知一律 `en`。**少了这一步就是客户可见的回退**：esimgo-web 发的是裸 `pt`（`esimgo-web/src/lib/i18n/locales.ts:55`，`customer-support-session-service.ts:31` 只把连字符换成下划线），裸 `pt` 既不是 `pt_BR` 也不是 `pt_PT`、前缀也取不到 `pt`，于是葡萄牙语客户拿到的是英文卡面（Data / Validity / Price / View plan）—— 正是本节要避免的那种回退。
+
 **为什么不用 Chatwoot 的 I18n**：
 
 1. 卡片在 **Captain 的 job** 里生成，没有请求上下文 —— Chatwoot 自己的 Captain 也得手动包 `I18n.with_locale(account.locale)`（`response_builder_job.rb:99`）。而我们要的是**客户**的语言（contact 上的 `locale`），不是 account 的语言。

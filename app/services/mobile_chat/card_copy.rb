@@ -22,19 +22,31 @@ module MobileChat::CardCopy
   #
   # A scheme is only a URI when a payload follows the colon: "data:text/html;base64,..." is one,
   # while "Data: 10 GB" and "Tel: +81 90 1234" are prose the customer should still read.
-  SCHEME_LIKE = %r{(?:[a-z][a-z0-9+.-]*):\S}i
+  SCHEME_LIKE = /(?:[a-z][a-z0-9+.-]*):\S/i
   # www. anywhere, or a bare domain sitting in the text as a single whitespace-free token.
   DOMAIN_LIKE = %r{(?:\A|[^\w.-])www\.|(?:\A|[^\w.-])(?:[a-z0-9-]+\.)+[a-z]{2,}(?:[/:?#]|\z)}i
-  MARKDOWN_LIKE = %r{\]\(|^\s{0,3}\#{1,6}\s|^\s{0,3}(?:[-*+]\s|\d+[.)]\s)}i
+  MARKDOWN_LIKE = /\]\(|^\s{0,3}\#{1,6}\s|^\s{0,3}(?:[-*+]\s|\d+[.)]\s)/i
   # A flag or a ZWJ sequence is one emoji however many codepoints it carries -- regional
   # indicators are not Extended_Pictographic -- so count grapheme clusters, not codepoints.
   EMOJI = /\p{Extended_Pictographic}|\p{Regional_Indicator}/
+  # The language families the app splits, keyed the way the bridge does it: the qualifier that
+  # selects a variant, plus what a bare language falls back to. zh carries no entry of its own --
+  # every Chinese locale is one of the two scripts -- and pt is Brazilian unless it says pt_PT.
+  FAMILY_LOCALES = {
+    'zh' => { 'hant' => 'zh_Hant', 'tw' => 'zh_Hant', 'hk' => 'zh_Hant', 'mo' => 'zh_Hant', 'default' => 'zh_CN' },
+    'pt' => { 'pt' => 'pt_PT', 'default' => 'pt_BR' },
+    'es' => { 'mx' => 'es_MX' },
+    'fr' => { 'ca' => 'fr_CA' }
+  }.freeze
+  # Legacy ISO codes the app never sends, but older clients did.
+  LEGACY_LANGUAGE_ALIASES = { 'fil' => 'tl', 'iw' => 'he', 'in' => 'id', 'nb' => 'no', 'nn' => 'no' }.freeze
 
   class << self
-    # The bridge's chain (localeCopy.js): exact appLocale, then the language prefix, then en.
+    # The dictionary is keyed by the app's own appLocale, and clients send the locale raw -- the
+    # website ships a bare "pt" -- so it is canonicalized before the lookup, exactly as the
+    # bridge did (localeCopy.js normalizes, then falls back exact -> language prefix -> en).
     def copy_for(locale)
-      key = locale.to_s.strip
-      dictionaries[key] || dictionaries[key.split('_').first] || dictionaries[ENGLISH] ||
+      dictionaries[canonical_locale(locale)] || dictionaries[ENGLISH] ||
         raise(CustomExceptions::MobileChat::NotConfigured, 'MOBILE_CHAT_CARD_COPY_EN')
     end
 
@@ -52,21 +64,65 @@ module MobileChat::CardCopy
 
     private
 
-    # Frozen per locale: these hashes back every card the process builds, so a caller writing
-    # into one would corrupt the copy for every later card.
+    # Frozen all the way down: these strings back every card the process builds, so a caller
+    # writing into one would corrupt the copy for every later card.
     def load_copies
       copies = YAML.load_file(COPY_PATH)
-      copies.each_value { |copy| copy.freeze }.freeze
+      copies.each_value { |copy| copy.each_value(&:freeze).freeze }.freeze
+    end
+
+    # Port of the bridge's normalizeLocale (mobileChat/language.js): the raw client value becomes
+    # the appLocale the dictionary is keyed by. Without it a bare "pt" matches no Portuguese entry
+    # and that customer reads the English card.
+    def canonical_locale(locale)
+      normalized = locale.to_s.strip.downcase.tr('-', '_')
+      return ENGLISH if normalized.blank?
+
+      canonical_map[normalized] || family_locale(normalized) || canonical_map[aliased_language(normalized)] || ENGLISH
+    end
+
+    # Keyed by the dictionary's own keys, so it cannot drift from the copy it serves.
+    def canonical_map
+      dictionaries.keys.index_by(&:downcase)
+    end
+
+    def family_locale(normalized)
+      language, *qualifiers = parts(normalized)
+      family = FAMILY_LOCALES[language]
+      return unless family
+
+      qualifier = qualifiers.find { |part| family.key?(part) }
+      family[qualifier || 'default']
+    end
+
+    # A regional locale falls back to its bare language, through the legacy aliases (en_GB -> en,
+    # de_DE -> de, fil -> tl); anything the dictionary does not carry is English.
+    def aliased_language(normalized)
+      language = parts(normalized).first
+      LEGACY_LANGUAGE_ALIASES.fetch(language, language)
+    end
+
+    def parts(normalized)
+      normalized.split('_').reject(&:empty?)
     end
 
     def sanitize(value, fallback, maximum)
       text = value.to_s.gsub(/[\u0000-\u001f\u007f-\u009f]/, ' ').squish
       return fallback if text.blank? || text.length > maximum
-      return fallback if text.match?(SCHEME_LIKE) || text.match?(DOMAIN_LIKE)
-      return fallback if text.match?(MARKDOWN_LIKE) || text.count('|') >= MIN_TABLE_PIPES
-      return fallback if text.scan(/\X/).count { |cluster| cluster.match?(EMOJI) } > MAX_EMOJI
+      return fallback if disallowed?(text)
 
       text
+    end
+
+    # What the model may not put on a purchase card: a link, markdown the renderer would not
+    # agree on, a table, or more decoration than the bubble holds.
+    def disallowed?(text)
+      text.match?(SCHEME_LIKE) || text.match?(DOMAIN_LIKE) || text.match?(MARKDOWN_LIKE) ||
+        text.count('|') >= MIN_TABLE_PIPES || too_many_emoji?(text)
+    end
+
+    def too_many_emoji?(text)
+      text.scan(/\X/).count { |cluster| cluster.match?(EMOJI) } > MAX_EMOJI
     end
   end
 end
