@@ -38,8 +38,64 @@ deploy/upstream-comparison/deploy.sh --status  # what's running
 remote Docker daemon over SSH), so there is no registry and nothing to push. Frontend
 and backend come from one build at one commit, tagged with the short SHA.
 
+### Building the image
+
+```bash
+deploy/upstream-comparison/deploy.sh --build-only   # build, do not switch
+```
+
+The build runs on the server, not here: this machine is arm64 and the server is x86_64,
+so a local build would have to emulate the target. `deploy.sh` hands the working tree to
+the server's daemon as the build context, which builds natively and leaves the image in
+that daemon's store.
+
+It takes ~40 minutes on that 4-core box and saturates the CPU; available memory drops to
+roughly 5 GB while the frontend compiles. The production stack runs on the same host —
+watch `free -h` while it runs.
+
+The tag is the short SHA the image was built from (`-dirty` when the tree has uncommitted
+changes). The commit has to be in the build context for that to work, because the
+Dockerfile writes `.git_sha` from it — do not trim `.git` out of `.dockerignore`.
+
+### Verifying a build before deploying it
+
+The image is the app; check the things that would otherwise only fail in a browser.
+Against the tag the build just produced:
+
+```bash
+ssh ubuntu@32.236.75.213 '
+  IMG=chatwoot-upstream:<tag>
+  # every entrypoint the layouts ask for must be in the Vite manifest — a missing
+  # one is a 500 on whichever layout uses it
+  docker run --rm --entrypoint node $IMG -e \
+    "Object.keys(require(\"/app/public/vite/.vite/manifest.json\"))
+       .filter(k=>k.startsWith(\"entrypoints/\")).forEach(k=>console.log(k))"
+  docker run --rm --entrypoint sh $IMG -c \
+    "[ -d /app/enterprise ] && echo enterprise-ok; cat /app/.git_sha"
+'
+```
+
+`enterprise/` being present is what makes the image EE (`ChatwootApp.enterprise?`); the
+`CW_EDITION` env var only affects the edition reported to the hub.
+
+### Verifying a deployment
+
+```bash
+deploy/upstream-comparison/deploy.sh --status          # which tag is live
+curl -s -o /dev/null -w '%{http_code}\n' http://32.236.75.213:81/
+curl -s -o /dev/null -w '%{http_code}\n' http://32.236.75.213:81/super_admin/sign_in
+```
+
+Both must be `200`. Super Admin is the canary — it is the first thing to break when the
+frontend and backend come from different commits.
+
+Ruby and JS specs are covered under **Build / Test / Lint** above; this section is about
+the image and the running instance.
+
+### Rules
+
 - Never hand-edit files inside the container, and never point this instance back at the official image.
-- Builds take 20–40 minutes on that 4-core box and compete with the production stack for memory. Use `--build-only` to build and verify before switching.
+- Prefer `--build-only` + the checks above over deploying straight away.
 - **Read `deploy/upstream-comparison/README.md` before touching the compose file.** It covers the subscription-check block, why `docker compose` on that host needs `sudo`, and how to roll back.
 - This targets the comparison instance only — it is not the production deploy path.
 
