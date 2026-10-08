@@ -80,6 +80,36 @@ RSpec.describe ContentAttributeValidator do
     expect(message).not_to be_valid
   end
 
+  it 'accepts a card with an https country image' do
+    message.content_attributes = plan_group([card.merge(country_image: 'https://admin.esimgo.site/upload/attachment/image/10000/202601/01/JP.svg')])
+
+    expect(message).to be_valid
+  end
+
+  it 'rejects an http country image' do
+    message.content_attributes = plan_group([card.merge(country_image: 'http://admin.esimgo.site/upload/attachment/image/10000/202601/01/JP.svg')])
+
+    expect(message).not_to be_valid
+  end
+
+  it 'rejects a country image that is not a url' do
+    message.content_attributes = plan_group([card.merge(country_image: '/upload/attachment/image/JP.svg')])
+
+    expect(message).not_to be_valid
+  end
+
+  it 'rejects an empty country image' do
+    message.content_attributes = plan_group([card.merge(country_image: '')])
+
+    expect(message).not_to be_valid
+  end
+
+  it 'rejects a country image carrying a fragment' do
+    message.content_attributes = plan_group([card.merge(country_image: 'https://cdn.example.com/jp.svg#flag')])
+
+    expect(message).not_to be_valid
+  end
+
   it 'rejects an unknown fact icon' do
     message.content_attributes = plan_group([card.merge(facts: [{ icon: 'star', label: 'Data', value: '10 GB' }])])
 

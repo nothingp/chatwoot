@@ -285,6 +285,31 @@ RSpec.describe MobileChat::CaptainToolkit do
       expect(alternative[:description]).to eq('已核实套餐方案。')
     end
 
+    it 'carries the product flag as country_image when upstream sends an https url' do
+      cards = toolkit.purchase_actions(params)[:cards]
+
+      expect(cards.map { |card| card[:country_image] }).to eq(['https://cdn/JP.svg', 'https://cdn/JP.svg'])
+    end
+
+    it 'omits country_image when the product image is not an https url' do
+      stub_request(:get, product_details_url)
+        .with(query: { product_id: '13' })
+        .to_return(
+          status: 200,
+          body: {
+            code: 1,
+            data: {
+              product_id: 13, name: '日本', country_image: 'http://cdn/JP.svg',
+              standard_skus: [{ sku_id: 13_055, data_size_gb: '10', billing_period_days: 7, price: { 'USD' => '16.99' } }]
+            }
+          }.to_json
+        )
+
+      card = toolkit.purchase_actions(params.merge('sku_ids' => ['13055']))[:cards].first
+
+      expect(card).not_to have_key(:country_image)
+    end
+
     it 'takes facts from the upstream sku' do
       facts = toolkit.purchase_actions(params)[:cards].first[:facts]
 

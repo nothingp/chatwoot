@@ -358,10 +358,11 @@ class MobileChat::CaptainToolkit
   end
 
   # The message validator wants exactly these six keys, so `media_url` is present and empty
-  # rather than omitted: the card is a fixed-size bubble and a country image of arbitrary aspect
-  # ratio would size it. The title carries the destination.
+  # rather than omitted: the card is a fixed-size bubble and a full-width country image would size
+  # it. The title carries the destination and the optional `country_image` is the flag beside it.
   def purchase_card(product, sku, copy, primary:, params:)
-    {
+    flag = country_image(product)
+    card = {
       title: product[:name].to_s,
       description: MobileChat::CardCopy.sanitize_description(primary ? param(params, :reason) : nil, copy['description']),
       media_url: '',
@@ -373,6 +374,16 @@ class MobileChat::CaptainToolkit
         uri: checkout_uri(product[:product_id], sku[:sku_id])
       }]
     }
+    card[:country_image] = flag if flag
+    card
+  end
+
+  # The widget renders the flag from this url, and the write-time validator only accepts an https
+  # one: a product whose image is missing or on another scheme is written without the key rather
+  # than as nil or an empty string, which would fail the message write.
+  def country_image(product)
+    image = product[:image].to_s
+    image if ContentAttributeValidator.country_image_uri?(image)
   end
 
   # Why one of these skus cannot become a card: it is not in the product, the product has no name

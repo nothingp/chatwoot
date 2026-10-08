@@ -1,31 +1,32 @@
 require 'uri'
 
 class ContentAttributeValidator < ActiveModel::Validator
+  include NovyroPlanContract
+
   ALLOWED_SELECT_ITEM_KEYS = [:title, :value, :description].freeze
   ALLOWED_CARD_ITEM_KEYS = [:title, :description, :media_url, :actions].freeze
   ALLOWED_CARD_ITEM_ACTION_KEYS = [:text, :type, :payload, :uri].freeze
   ALLOWED_FORM_ITEM_KEYS = [:type, :placeholder, :label, :name, :options, :default, :required, :pattern, :title, :pattern_error].freeze
   ALLOWED_ARTICLE_KEYS = [:title, :description, :link].freeze
 
-  # The plan cards the mobile app renders natively. This variant is its own contract: the app
-  # reads badge and facts and builds the checkout URL from the action's query terms, so a card
-  # outside this shape renders wrong or offers a dead button -- reject at write time instead.
-  NOVYRO_PLAN_VARIANT = 'novyro_plan_group'.freeze
-  NOVYRO_PLAN_TOP_LEVEL_KEYS = [:variant, :items].freeze
-  NOVYRO_PLAN_REQUIRED_ITEM_KEYS = [:title, :description, :media_url, :badge, :facts, :actions].freeze
-  NOVYRO_PLAN_MAX_ITEMS = 5
-  NOVYRO_PLAN_MAX_FACTS = 3
-  NOVYRO_PLAN_FACT_KEYS = [:icon, :label, :value].freeze
-  NOVYRO_PLAN_FACT_ICONS = %w[wifi calendar wallet].freeze
-  NOVYRO_PLAN_ACTION_KEYS = [:type, :text, :uri].freeze
-  NOVYRO_PLAN_ACTION_PATH = '/app-actions/checkout'.freeze
-  NOVYRO_PLAN_ACTION_QUERY_KEYS = %w[catalog_env goods_id sku_id].freeze
-  NOVYRO_PLAN_CATALOG_ENVIRONMENTS = %w[dev test prod].freeze
-  NOVYRO_PLAN_MAX_SAFE_ID = 9_007_199_254_740_991
-  NOVYRO_PLAN_TEXT_LIMITS = {
-    title: 160, description: 500, badge: 40,
-    fact_label: 40, fact_value: 120, action_text: 120, action_uri: 2048
-  }.freeze
+  # Strings in the plan contract are nonempty, bounded and free of control characters.
+  def self.valid_nonempty_text?(value, maximum = nil)
+    value.is_a?(String) && value.strip.present? &&
+      (maximum.nil? || value.length <= maximum) &&
+      !value.match?(/[\u0000-\u001f\u007f-\u009f]/)
+  end
+
+  # The widget loads the flag straight into an <img src>, and MobileChat::CaptainToolkit asks the
+  # same question before it puts the key on a card: a product whose image the app cannot load is
+  # written without the key instead of as a message this validator rejects.
+  def self.country_image_uri?(value)
+    return false unless valid_nonempty_text?(value, NOVYRO_PLAN_TEXT_LIMITS[:country_image])
+
+    uri = URI.parse(value)
+    uri.is_a?(URI::HTTPS) && uri.host.present? && uri.userinfo.nil? && uri.fragment.nil?
+  rescue URI::InvalidURIError
+    false
+  end
 
   def validate(record)
     case record.content_type
@@ -76,7 +77,7 @@ class ContentAttributeValidator < ActiveModel::Validator
   def validate_novyro_plan_item!(record, item)
     return record.errors.add(:content_attributes, 'Novyro plan items must be hashes.') unless item.is_a?(Hash)
 
-    unless exact_hash_keys?(item, NOVYRO_PLAN_REQUIRED_ITEM_KEYS)
+    unless exact_hash_keys?(item.except(*NOVYRO_PLAN_OPTIONAL_ITEM_KEYS), NOVYRO_PLAN_REQUIRED_ITEM_KEYS)
       record.errors.add(:content_attributes, 'contains invalid keys for Novyro plan items')
     end
 
@@ -86,8 +87,16 @@ class ContentAttributeValidator < ActiveModel::Validator
 
     record.errors.add(:content_attributes, 'Novyro plan media_url must be empty.') unless attribute_value(item, :media_url) == ''
 
+    validate_novyro_plan_country_image!(record, item)
     validate_novyro_plan_facts!(record, attribute_value(item, :facts))
     validate_novyro_plan_actions!(record, attribute_value(item, :actions))
+  end
+
+  def validate_novyro_plan_country_image!(record, item)
+    return unless NOVYRO_PLAN_OPTIONAL_ITEM_KEYS.any? { |key| item.key?(key) }
+    return if self.class.country_image_uri?(attribute_value(item, :country_image))
+
+    record.errors.add(:content_attributes, 'Novyro plan country_image must be an https url.')
   end
 
   def validate_novyro_plan_facts!(record, facts)
@@ -170,9 +179,7 @@ class ContentAttributeValidator < ActiveModel::Validator
   end
 
   def valid_nonempty_text?(value, maximum = nil)
-    value.is_a?(String) && value.strip.present? &&
-      (maximum.nil? || value.length <= maximum) &&
-      !value.match?(/[\u0000-\u001f\u007f-\u009f]/)
+    self.class.valid_nonempty_text?(value, maximum)
   end
 
   def exact_hash_keys?(value, expected_keys)
