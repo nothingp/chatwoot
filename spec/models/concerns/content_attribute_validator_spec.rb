@@ -98,14 +98,34 @@ RSpec.describe ContentAttributeValidator do
     expect(message).not_to be_valid
   end
 
-  it 'rejects an empty country image' do
+  it 'accepts an empty country image as the no-image form' do
     message.content_attributes = plan_group([card.merge(country_image: '')])
 
-    expect(message).not_to be_valid
+    expect(message).to be_valid
   end
 
   it 'rejects a country image carrying a fragment' do
     message.content_attributes = plan_group([card.merge(country_image: 'https://cdn.example.com/jp.svg#flag')])
+
+    expect(message).not_to be_valid
+  end
+
+  it 'rejects a country image carrying credentials' do
+    message.content_attributes = plan_group([card.merge(country_image: 'https://user:pw@cdn.example.com/jp.svg')])
+
+    expect(message).not_to be_valid
+  end
+
+  it 'accepts a country image of exactly 2048 characters' do
+    image = "https://cdn.example.com/#{'a' * 2024}"
+    message.content_attributes = plan_group([card.merge(country_image: image)])
+
+    expect(message).to be_valid
+  end
+
+  it 'rejects a country image past 2048 characters' do
+    image = "https://cdn.example.com/#{'a' * 2025}"
+    message.content_attributes = plan_group([card.merge(country_image: image)])
 
     expect(message).not_to be_valid
   end

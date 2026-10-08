@@ -288,6 +288,9 @@ class MobileChat::CaptainToolkit
     }.compact
   end
 
+  # `image` is the picture the prompt shows the model and falls back to the banner; `country_image`
+  # is the card's flag slot and takes the flag alone, the way the sibling plan presenter does. A
+  # product with only a banner image must not put a cropped banner in a 24x24 avatar.
   def present_product(raw, fallback_id = nil)
     product = hash(raw)
     {
@@ -296,6 +299,7 @@ class MobileChat::CaptainToolkit
       country_code: value(product, :country_code, :countryCode),
       country_name: value(product, :country_url_name, :countryUrlName),
       image: value(product, :country_image, :countryImage, :background_image, :backgroundImage),
+      country_image: value(product, :country_image, :countryImage),
       from_price: value(product, :min_sku_price, :minSkuPrice),
       skus: product_skus(product, limit: MAX_ITEMS)
     }.compact
@@ -379,11 +383,12 @@ class MobileChat::CaptainToolkit
   end
 
   # The widget renders the flag from this url, and the write-time validator only accepts an https
-  # one: a product whose image is missing or on another scheme is written without the key rather
-  # than as nil or an empty string, which would fail the message write.
+  # one: a product whose flag is missing or on another scheme is written without the key rather
+  # than as nil or an empty string, which would fail the message write. Reads the product's own
+  # flag, never `image`, which also carries the banner.
   def country_image(product)
-    image = product[:image].to_s
-    image if ContentAttributeValidator.country_image_uri?(image)
+    flag = product[:country_image].to_s
+    flag if ContentAttributeValidator.country_image_uri?(flag)
   end
 
   # Why one of these skus cannot become a card: it is not in the product, the product has no name

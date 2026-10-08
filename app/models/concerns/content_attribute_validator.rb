@@ -92,11 +92,15 @@ class ContentAttributeValidator < ActiveModel::Validator
     validate_novyro_plan_actions!(record, attribute_value(item, :actions))
   end
 
+  # The contract's flag is a url or the empty string that stands for "no flag", so a card written by
+  # the original app assembler stays writable. The widget guards on truthiness, so '' renders none.
   def validate_novyro_plan_country_image!(record, item)
     return unless NOVYRO_PLAN_OPTIONAL_ITEM_KEYS.any? { |key| item.key?(key) }
-    return if self.class.country_image_uri?(attribute_value(item, :country_image))
 
-    record.errors.add(:content_attributes, 'Novyro plan country_image must be an https url.')
+    value = attribute_value(item, :country_image)
+    return if value == '' || self.class.country_image_uri?(value)
+
+    record.errors.add(:content_attributes, 'Novyro plan country_image must be empty or an https url.')
   end
 
   def validate_novyro_plan_facts!(record, facts)

@@ -310,6 +310,28 @@ RSpec.describe MobileChat::CaptainToolkit do
       expect(card).not_to have_key(:country_image)
     end
 
+    # The flag slot is a 24x24 avatar, so a product that only has a banner must leave it empty: the
+    # banner stays on the prompt-facing `image`, which is where the model reads the product.
+    it 'leaves the flag empty when the product only carries a banner image' do
+      stub_request(:get, product_details_url)
+        .with(query: { product_id: '13' })
+        .to_return(
+          status: 200,
+          body: {
+            code: 1,
+            data: {
+              product_id: 13, name: '日本', background_image: 'https://cdn/JP-banner.jpg',
+              standard_skus: [{ sku_id: 13_055, data_size_gb: '10', billing_period_days: 7, price: { 'USD' => '16.99' } }]
+            }
+          }.to_json
+        )
+
+      card = toolkit.purchase_actions(params.merge('sku_ids' => ['13055']))[:cards].first
+
+      expect(card).not_to have_key(:country_image)
+      expect(toolkit.get_product_details({ 'product_id' => '13' })[:product][:image]).to eq('https://cdn/JP-banner.jpg')
+    end
+
     it 'takes facts from the upstream sku' do
       facts = toolkit.purchase_actions(params)[:cards].first[:facts]
 
