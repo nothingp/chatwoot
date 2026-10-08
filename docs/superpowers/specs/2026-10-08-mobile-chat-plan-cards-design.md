@@ -94,6 +94,12 @@ facts 取值（`factsFor`）：
 
 facts 缺失时 App 会退化成用正则从 `title + description + action labels` 里猜流量与天数（`_firstMatch`）—— 能用，但正是"标题一乱、卡片就乱"的来源，所以 facts 必须发全。
 
+### 2.2 stock widget（web / 浏览器路径）渲染什么
+
+`ChatCard.vue` 只认 `title` / `description` / `action.text` 与 `action.uri`，**`badge` 与 `facts` 它没有位置可放**，所以同一条消息在 widget 里长成"标题 + 一行描述 + 一个链接按钮"的简版卡片：没有徽标、没有国旗、没有图标化的流量/有效期/价格，也没有全宽 CTA。
+
+**同一条消息在两处显示不同是设计如此**，不是数据缺失 —— 实机验证时（2026-10-08，`32.236.75.213:81`）看到的就是这个差异。要在 widget 里也得到富卡片，得改 `ChatCard.vue`（或按 variant 新增渲染组件），那是本仓库的前端工作。
+
 ## 3. 数据流：模型决策，服务端对账
 
 原设计的要点是 —— **模型是决策者（选哪个 SKU、primary 还是 alternative、理由怎么写、CTA 文案叫什么），但不是数据源**（数字与 id 都来自工具返回，且被服务端对账）。照搬：
@@ -132,6 +138,8 @@ facts 缺失时 App 会退化成用正则从 `title + description + action label
 **上游语言与币种**：`recommend_plans` 与 `create_purchase_action` 都要把 contact 上落的 `locale` / `currency` 作为 **header** 传给上游（原实现 `publicHeaders`，`appClient.js:133`），这样上游返回的语言与价格就是我们直接要用的那份。缺失时回落（locale → en，currency → USD）。
 
 **`catalog_env` 是必填的第三个 query**：取 contact 的 `catalog_environment`，缺失回落部署配置（原实现 `context.catalogEnvironment || config.novyroCatalogEnvironment`）。缺了它按钮就是废的，所以必须有兜底而不是静默省略。
+
+**这个兜底行必须在部署时真的进库（2026-10-08 线上复核补记）**：`NOVYRO_CATALOG_ENVIRONMENT` 已写进 `config/installation_config.yml`，但 `ConfigLoader` 只在 `db:migrate`（`lib/tasks/db_enhancements.rake` 的 enhance）与 seeds/`db:chatwoot_prepare` 时跑，**启动时不跑**。所以只更新镜像、不跑迁移的部署里，数据库没有这一行，`Config.value` 直接 `NotConfigured` —— 实测就是这样：容器里补跑 `ConfigLoader.new.process` 后 `NOVYRO_CATALOG_ENVIRONMENT=prod` 才出现，卡片随之正常。**任何部署这条线的环境都要确认该行存在（跑一次 migrate，或 `rails runner "ConfigLoader.new.process"`）。**
 
 ## 4. 文案
 
