@@ -280,6 +280,8 @@ git commit -m "feat(mobile-chat): ship the plan card copy for 41 app locales"
 
 ### Task 2: 校验器接受 novyro_plan_group
 
+> **落地提示（实测）**：下面 Step 2 的代码照抄会踩 9 处 rubocop（`Metrics/CyclomaticComplexity` 13/7、`Metrics/AbcSize`、`Metrics/PerceivedComplexity`、`Style/IfUnlessModifier`），CI 会红。写之前先按 `.rubocop.yml` 拆方法（拆完注意 `Metrics/ClassLength` Max 175，很容易顶到）。另外 `compatible_hash_keys?(item, REQUIRED, REQUIRED)` 传的是同一个常量两遍，等价于 `exact_hash_keys?`，直接用它、别加那个助手。
+
 **Files:**
 - Modify: `app/models/concerns/content_attribute_validator.rb`
 - Test: `spec/models/concerns/content_attribute_validator_spec.rb`（新增）
