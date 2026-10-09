@@ -2,6 +2,9 @@ module Llm::FeatureRouter
   class UnknownFeatureError < StandardError; end
 
   CAPTAIN_V2_ASSISTANT_MODEL = 'gpt-5.2'.freeze
+  # pdf_faq_generation 必须用支持 fileid:// 的模型（qwen-long），audio_transcription 已停用。
+  # 两者都不能跟随 installation 级的 chat 模型 —— 详见 docs/superpowers/specs/2026-10-09-captain-llm-provider-migration-design.md §5.1
+  PINNED_MODEL_FEATURES = %w[pdf_faq_generation audio_transcription].freeze
 
   class << self
     def resolve(feature:, account: nil)
@@ -37,7 +40,7 @@ module Llm::FeatureRouter
     end
 
     def installation_model_override(feature_key)
-      return unless feature_key == 'conversation_completion'
+      return if PINNED_MODEL_FEATURES.include?(feature_key)
       return unless ChatwootApp.self_hosted_paid?
 
       InstallationConfig.find_by(name: 'CAPTAIN_OPEN_AI_MODEL')&.value.presence

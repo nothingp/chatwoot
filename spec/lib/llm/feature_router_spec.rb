@@ -140,4 +140,35 @@ RSpec.describe Llm::FeatureRouter do
         .to raise_error(described_class::UnknownFeatureError, 'Unknown LLM feature: unknown_feature')
     end
   end
+
+  describe 'installation model override scope' do
+    before do
+      allow(ChatwootApp).to receive(:self_hosted_paid?).and_return(true)
+      InstallationConfig.find_or_initialize_by(name: 'CAPTAIN_OPEN_AI_MODEL').update!(value: 'custom-model')
+    end
+
+    it 'applies the installation model to a non-internal feature' do
+      resolved = described_class.resolve(feature: 'editor', account: account)
+
+      expect(resolved).to include(model: 'custom-model', source: :installation_override)
+    end
+
+    it 'applies the installation model to the assistant feature' do
+      account.enable_features!('captain_integration')
+
+      resolved = described_class.resolve(feature: 'assistant', account: account)
+
+      expect(resolved).to include(model: 'custom-model', source: :installation_override)
+    end
+
+    it 'does not apply the installation model to pinned features' do
+      resolved = described_class.resolve(feature: 'pdf_faq_generation', account: account)
+
+      expect(resolved).to include(model: 'gpt-4.1-mini', source: :default)
+    end
+
+    it 'pins exactly the features that cannot follow the global chat model' do
+      expect(described_class::PINNED_MODEL_FEATURES).to eq(%w[pdf_faq_generation audio_transcription])
+    end
+  end
 end
