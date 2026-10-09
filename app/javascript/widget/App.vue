@@ -58,6 +58,11 @@ export default {
     isIFrame() {
       return IFrameHelper.isIFrame();
     },
+    // Our session entry (/mobile-chat handoff) is the only embed that carries
+    // cw_conversation; the official SDK embed does not.
+    hasSessionHandoff() {
+      return new URLSearchParams(window.location.search).has('cw_conversation');
+    },
     isRNWebView() {
       return RNHelper.isRNWebView();
     },
@@ -95,13 +100,18 @@ export default {
     this.setWidgetColor(widgetColor);
     this.setWidgetColorVariable(widgetColor);
     setHeader(window.authToken);
-    if (this.isIFrame) {
-      this.registerListeners();
-      this.sendLoadedEvent();
-    } else {
+    // The session entry also fetches for itself inside an iframe: it is embedded without the
+    // official SDK, so the config-set handshake never arrives and the messages reach the UI by a
+    // path that drops content_type, which degrades card messages to plain text.
+    const selfFetches = !this.isIFrame || this.hasSessionHandoff;
+    if (selfFetches) {
       this.fetchOldConversations();
       this.fetchAvailableAgents(websiteToken);
       this.setLocale(getLocale(window.location.search));
+    }
+    if (this.isIFrame) {
+      this.registerListeners();
+      this.sendLoadedEvent();
     }
     if (this.isRNWebView) {
       this.registerListeners();
