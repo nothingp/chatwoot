@@ -28,6 +28,10 @@ class MobileChat::CaptainToolkit
   # is a wall. This is also the message validator's own item limit.
   CARD_LIMIT = 5
 
+  # The platform the session recorded (MobileChat::ContactCredentials): only the website embeds the
+  # widget in an iframe, and only there does the checkout have to go out as a postback.
+  WEB_PLATFORM = 'web'.freeze
+
   # The raw order payload also carries QR codes, full ICCIDs and internal supplier fields.
   # Whitelist instead of passing it through: this is rendered into the customer's prompt.
   ORDER_KEYS = %i[
@@ -366,20 +370,31 @@ class MobileChat::CaptainToolkit
   # it. The title carries the destination and the optional `country_image` is the flag beside it.
   def purchase_card(product, sku, copy, primary:, params:)
     flag = country_image(product)
+    label = MobileChat::CardCopy.sanitize_action_text(primary ? param(params, :label) : nil, copy['cta'])
     card = {
       title: product[:name].to_s,
       description: MobileChat::CardCopy.sanitize_description(primary ? param(params, :reason) : nil, copy['description']),
       media_url: '',
       badge: primary ? copy['primary'] : copy['alternative'],
       facts: purchase_facts(sku, copy),
-      actions: [{
-        type: 'link',
-        text: MobileChat::CardCopy.sanitize_action_text(primary ? param(params, :label) : nil, copy['cta']),
-        uri: checkout_uri(product[:product_id], sku[:sku_id])
-      }]
+      actions: [purchase_action(label, checkout_uri(product[:product_id], sku[:sku_id]))]
     }
     card[:country_image] = flag if flag
     card
+  end
+
+  # The website embeds the widget in a sandboxed iframe, where a link cannot open the checkout at
+  # all, so its url has to be post-messaged to the host page -- which Chatwoot does for a postback,
+  # and only inside an iframe. The app loads the chat top-level in a WebView, where Chatwoot never
+  # emits a postback, and intercepts the link itself, so a missing or unrecognised platform keeps
+  # the link rather than leaving the app with a dead button.
+  def purchase_action(text, uri)
+    return { type: 'link', text: text, uri: uri } unless contact&.custom_attributes&.dig('platform') == WEB_PLATFORM
+
+    # JSON.generate, not to_json: to_json HTML-escapes the url's `&`, which would inflate a payload
+    # the validator bounds at 2048 characters.
+    payload = JSON.generate(type: NovyroPlanContract::NOVYRO_PLAN_POSTBACK_TYPE, url: uri)
+    { type: 'postback', text: text, payload: payload }
   end
 
   # The widget renders the flag from this url, and the write-time validator accepts only an https

@@ -358,6 +358,45 @@ RSpec.describe MobileChat::CaptainToolkit do
       expect(action[:uri]).to eq('https://app.example.com/app-actions/checkout?goods_id=13&sku_id=13055&catalog_env=prod')
     end
 
+    # The website embeds the widget in a sandboxed iframe, where a link cannot open the checkout at
+    # all, so its url goes out as a postback payload for the host page to open instead.
+    it 'builds a postback action for the website' do
+      web_contact = create(:contact, account: account, identifier: 'member_web',
+                                     custom_attributes: { 'app_token' => 'member-token', 'locale' => 'zh_CN',
+                                                          'currency' => 'USD', 'catalog_environment' => 'prod',
+                                                          'platform' => 'web' })
+      action = described_class.new(create(:conversation, account: account, contact: web_contact))
+                              .purchase_actions(params)[:cards].first[:actions].first
+
+      expect(action[:type]).to eq('postback')
+      expect(action[:text]).to eq('日本 7日 10GB 总量套餐')
+      expect(JSON.parse(action[:payload])).to eq(
+        'type' => 'checkout',
+        'url' => 'https://app.example.com/app-actions/checkout?goods_id=13&sku_id=13055&catalog_env=prod'
+      )
+    end
+
+    it 'keeps the link action for the app' do
+      app_contact = create(:contact, account: account, identifier: 'member_app',
+                                     custom_attributes: { 'app_token' => 'member-token', 'locale' => 'zh_CN',
+                                                          'currency' => 'USD', 'catalog_environment' => 'prod',
+                                                          'platform' => 'ios' })
+      action = described_class.new(create(:conversation, account: account, contact: app_contact))
+                              .purchase_actions(params)[:cards].first[:actions].first
+
+      expect(action[:type]).to eq('link')
+      expect(action[:uri]).to eq('https://app.example.com/app-actions/checkout?goods_id=13&sku_id=13055&catalog_env=prod')
+    end
+
+    # A session that recorded no platform is the app as far as this choice goes: defaulting it to a
+    # postback would leave the app with a button that does nothing.
+    it 'keeps the link action when the session recorded no platform' do
+      action = toolkit.purchase_actions(params)[:cards].first[:actions].first
+
+      expect(action[:type]).to eq('link')
+      expect(action[:uri]).to eq('https://app.example.com/app-actions/checkout?goods_id=13&sku_id=13055&catalog_env=prod')
+    end
+
     it 'falls back to the shipped copy when the model text carries a link' do
       result = toolkit.purchase_actions(params.merge('reason' => 'see https://novyro.com'))
 

@@ -133,15 +133,27 @@ class ContentAttributeValidator < ActiveModel::Validator
   end
 
   def validate_novyro_plan_action!(record, action)
+    return validate_novyro_plan_postback_action!(record, action) if attribute_value(action, :type) == 'postback'
+
     record.errors.add(:content_attributes, 'contains invalid keys for Novyro plan actions') unless exact_hash_keys?(action, NOVYRO_PLAN_ACTION_KEYS)
-    record.errors.add(:content_attributes, 'Novyro plan action type must be link.') unless attribute_value(action, :type) == 'link'
+    record.errors.add(:content_attributes, 'Novyro plan action type must be link or postback.') unless attribute_value(action, :type) == 'link'
     validate_bounded_text!(record, action, :text, NOVYRO_PLAN_TEXT_LIMITS[:action_text])
-    validate_bounded_text!(record, action, :uri, NOVYRO_PLAN_TEXT_LIMITS[:action_uri])
+    return unless validate_bounded_text!(record, action, :uri, NOVYRO_PLAN_TEXT_LIMITS[:action_uri])
 
-    uri = attribute_value(action, :uri)
-    return unless valid_nonempty_text?(uri, NOVYRO_PLAN_TEXT_LIMITS[:action_uri])
+    record.errors.add(:content_attributes, 'Novyro plan action uri is invalid.') unless checkout_uri?(attribute_value(action, :uri))
+  end
 
-    record.errors.add(:content_attributes, 'Novyro plan action uri is invalid.') unless checkout_uri?(uri)
+  # The website embeds the widget in a sandboxed iframe, where a link cannot open the checkout, so
+  # its action carries the same url as a postback payload the host page reads and opens.
+  def validate_novyro_plan_postback_action!(record, action)
+    record.errors.add(:content_attributes, 'contains invalid keys for Novyro plan actions') unless exact_hash_keys?(action, NOVYRO_PLAN_POSTBACK_KEYS)
+    validate_bounded_text!(record, action, :text, NOVYRO_PLAN_TEXT_LIMITS[:action_text])
+
+    payload = attribute_value(action, :payload)
+    return unless validate_bounded_text!(record, action, :payload, NOVYRO_PLAN_TEXT_LIMITS[:action_payload])
+
+    url = NovyroPlanContract.postback_checkout_url(payload)
+    record.errors.add(:content_attributes, 'Novyro plan postback payload is invalid.') unless url && checkout_uri?(url)
   end
 
   # The app opens its own checkout from exactly these three terms; a fourth term or a missing one
@@ -176,10 +188,13 @@ class ContentAttributeValidator < ActiveModel::Validator
       value.to_i.between?(1, NOVYRO_PLAN_MAX_SAFE_ID)
   end
 
+  # Answers whether the value passed, so a caller can stop before it reads a string that is larger
+  # than the bound (the postback payload, which is parsed as JSON).
   def validate_bounded_text!(record, attributes, key, maximum)
-    return if valid_nonempty_text?(attribute_value(attributes, key), maximum)
+    return true if valid_nonempty_text?(attribute_value(attributes, key), maximum)
 
     record.errors.add(:content_attributes, "Novyro plan #{key} must be a nonempty string of at most #{maximum} characters.")
+    false
   end
 
   def valid_nonempty_text?(value, maximum = nil)

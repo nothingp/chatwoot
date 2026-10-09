@@ -22,6 +22,7 @@ RSpec.describe ContentAttributeValidator do
       }]
     }
   end
+  let(:checkout_url) { 'https://support.example.com/app-actions/checkout?goods_id=13&sku_id=13055&catalog_env=prod' }
   let(:items) { [card] }
   let(:message) do
     build(:message, account: account, inbox: inbox, conversation: conversation,
@@ -155,11 +156,128 @@ RSpec.describe ContentAttributeValidator do
     expect(message).not_to be_valid
   end
 
-  it 'rejects a postback action' do
-    action = card[:actions].first.merge(type: 'postback')
-    message.content_attributes = plan_group([card.merge(actions: [action])])
+  # The website embeds the widget in a sandboxed iframe, where a link cannot open the checkout, so
+  # its action carries the same url as a postback payload the host page reads and opens.
+  context 'with a postback action' do
+    let(:payload) { { type: 'checkout', url: checkout_url } }
+    let(:postback) { { type: 'postback', text: 'View plan', payload: JSON.generate(payload) } }
+    let(:postback_card) { card.merge(actions: [postback]) }
+    # The url rides in JSON, so the payload bound is the uri bound minus this wrapper.
+    let(:payload_wrapper) { JSON.generate(type: 'checkout', url: '').length }
 
-    expect(message).not_to be_valid
+    # Every example here swaps the action alone, so the card wrapper is written once.
+    def plan_grouped(action)
+      plan_group([card.merge(actions: [action])])
+    end
+
+    it 'accepts a payload carrying the checkout url' do
+      message.content_attributes = plan_group([postback_card])
+
+      expect(message).to be_valid
+    end
+
+    it 'rejects a payload that is not JSON' do
+      message.content_attributes = plan_grouped(postback.merge(payload: 'not json'))
+
+      expect(message).not_to be_valid
+    end
+
+    it 'rejects a payload whose type is not checkout' do
+      message.content_attributes = plan_grouped(postback.merge(payload: JSON.generate(payload.merge(type: 'order'))))
+
+      expect(message).not_to be_valid
+    end
+
+    it 'rejects a payload with an extra key' do
+      message.content_attributes = plan_grouped(postback.merge(payload: JSON.generate(payload.merge(label: 'Buy'))))
+
+      expect(message).not_to be_valid
+    end
+
+    it 'rejects a payload missing the url' do
+      message.content_attributes = plan_grouped(postback.merge(payload: JSON.generate(type: 'checkout')))
+
+      expect(message).not_to be_valid
+    end
+
+    # JSON.parse answers an array, a number, a string or null just as happily; none of them is the
+    # payload shape, and none of them may raise.
+    it 'rejects a payload that is valid JSON but not an object' do
+      validities = ['[]', '1', '"x"', 'null'].map do |json|
+        message.content_attributes = plan_grouped(postback.merge(payload: json))
+        message.valid?
+      end
+
+      expect(validities).to eq([false, false, false, false])
+    end
+
+    it 'rejects a payload whose url is not a string' do
+      message.content_attributes = plan_grouped(postback.merge(payload: JSON.generate(payload.merge(url: 13))))
+
+      expect(message).not_to be_valid
+    end
+
+    it 'rejects a payload whose url is not the checkout path' do
+      url = checkout_url.sub('/app-actions/checkout', '/checkout')
+      message.content_attributes = plan_grouped(postback.merge(payload: JSON.generate(payload.merge(url: url))))
+
+      expect(message).not_to be_valid
+    end
+
+    it 'rejects a payload whose url misses a query term' do
+      message.content_attributes = plan_grouped(postback.merge(payload: JSON.generate(payload.merge(url: checkout_url.sub('&catalog_env=prod', '')))))
+
+      expect(message).not_to be_valid
+    end
+
+    # http stays legal -- checkout_uri? takes both schemes -- so this uses a scheme the app cannot
+    # hand on at all.
+    it 'rejects a payload whose url is on another scheme' do
+      message.content_attributes = plan_grouped(postback.merge(payload: JSON.generate(payload.merge(url: checkout_url.sub('https://', 'ftp://')))))
+
+      expect(message).not_to be_valid
+    end
+
+    it 'accepts a payload of exactly 2048 characters' do
+      url = checkout_url.sub('support', "support#{'a' * (2048 - payload_wrapper - checkout_url.length)}")
+      padded = JSON.generate(payload.merge(url: url))
+      message.content_attributes = plan_grouped(postback.merge(payload: padded))
+
+      expect(padded.length).to eq(2048)
+      expect(message).to be_valid
+    end
+
+    it 'rejects a payload past 2048 characters' do
+      url = checkout_url.sub('support', "support#{'a' * (2048 - payload_wrapper - checkout_url.length + 1)}")
+      message.content_attributes = plan_grouped(postback.merge(payload: JSON.generate(payload.merge(url: url))))
+
+      expect(message).not_to be_valid
+    end
+
+    it 'rejects a postback without text' do
+      message.content_attributes = plan_grouped(postback.except(:text))
+
+      expect(message).not_to be_valid
+    end
+
+    it 'rejects an empty action text' do
+      message.content_attributes = plan_grouped(postback.merge(text: ''))
+
+      expect(message).not_to be_valid
+    end
+
+    it 'rejects an action text past 120 characters' do
+      message.content_attributes = plan_grouped(postback.merge(text: 'a' * 121))
+
+      expect(message).not_to be_valid
+    end
+
+    # A postback carrying the link's own keys is the shape the validator used to accept; it must not.
+    it 'rejects a postback carrying the link keys' do
+      message.content_attributes = plan_group([card.merge(actions: [card[:actions].first.merge(type: 'postback')])])
+
+      expect(message).not_to be_valid
+    end
   end
 
   it 'rejects a checkout uri without the catalog environment' do
