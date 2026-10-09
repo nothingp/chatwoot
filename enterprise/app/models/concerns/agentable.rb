@@ -5,13 +5,15 @@ module Concerns::Agentable
 
   def agent(runtime_configuration: nil, runtime_agent_name: nil)
     model = agent_model
+    provider_params = Llm::Models.model_params(model)
     Agents::Agent.new(
       name: runtime_agent_name || agent_name,
       instructions: ->(context) { agent_instructions(context, runtime_configuration: runtime_configuration) },
       tools: agent_tools,
       model: model,
       temperature: Llm::Models.temperature_for(model, temperature.presence&.to_f || DEFAULT_TEMPERATURE),
-      response_schema: agent_response_schema
+      response_schema: agent_response_schema,
+      **(provider_params.any? ? { params: provider_params } : {})
     )
   end
 

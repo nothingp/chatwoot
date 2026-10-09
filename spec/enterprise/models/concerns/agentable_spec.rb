@@ -77,6 +77,16 @@ RSpec.describe Concerns::Agentable do
 
       dummy_instance.agent
     end
+
+    it 'passes the model params to the agent when the model declares them' do
+      account.update!(captain_models: { 'assistant' => 'qwen3.8-flash' })
+
+      expect(Agents::Agent).to receive(:new).with(
+        hash_including(params: { enable_thinking: false })
+      )
+
+      dummy_instance.agent
+    end
   end
 
   describe '#agent_instructions' do
