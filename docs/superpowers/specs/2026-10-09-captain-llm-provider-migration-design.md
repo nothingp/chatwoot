@@ -21,7 +21,7 @@ Captain 当前所有 LLM 调用走 OpenAI。迁移到阿里云 DashScope（百�
 ### 目标
 
 - Captain 的 chat 与 embedding 全部由 DashScope 提供
-- 切 provider（DashScope ↔ OpenAI）或换模型 id，对 **9 个 chat feature 与 embedding** = 改配置 + 进程重启，**不改代码、不重建镜像**
+- 切 provider（DashScope ↔ OpenAI）或换模型 id，对 **10 个文本类 feature 与 embedding** = 改配置 + 进程重启，**不改代码、不重建镜像**
 - 向量迁移零内容损失
 
 > ⚠️ 「不改代码」有一个例外：**`pdf_faq_generation` 不可移植**。它的 `fileid://` 引用方式是 DashScope 专有，切回 OpenAI 需改代码（§7.5、§12）。这是选路 B 的已知代价，不是遗漏。
@@ -150,16 +150,18 @@ PDF FAQ 生成由两个 service 承担，都继承 `Llm::LegacyBaseOpenAiService
 
 | 用途 | 模型 id | 说明 |
 |---|---|---|
-| **9 个 chat feature** | `qwen3.8-flash` | 替换 `gpt-4.1` / `gpt-4.1-mini` / `gpt-4.1-nano` / `gpt-5.2` |
+| **10 个文本类 feature** | `qwen3.8-flash` | 替换 `gpt-4.1` / `gpt-4.1-mini` / `gpt-4.1-nano` / `gpt-5.2` |
 | 向量检索 | `qwen3.7-text-embedding`（`dimensions: 1536`） | 替换 `text-embedding-3-small` |
 | **`pdf_faq_generation`** | **`qwen-long`** | 唯一支持 `fileid://` 的模型（见 §5.1）。需改 2 个 service |
 | `audio_transcription` | 不变，**功能停用** | DashScope 无 OpenAI 式 `audio.transcribe` 等价端点；该 feature 未启用 |
 
-> `llm.yml` 共 13 个 feature：11 个 chat 类 + 1 个 embedding（`help_center_search`）+ 1 个内部（`conversation_completion`，计入 chat 类）。11 个 chat 类中 **9 个走 `qwen3.8-flash`**，`pdf_faq_generation` 单独走 `qwen-long`，`audio_transcription` 停用。
+> `llm.yml` 共 13 个 feature = **11 个文本类** + 1 个音频（`audio_transcription`）+ 1 个 embedding（`help_center_search`）。11 个文本类中 **10 个走 `qwen3.8-flash`**（含内部 feature `conversation_completion`），`pdf_faq_generation` 单独走 `qwen-long`；`audio_transcription` 停用。
+>
+> 逐个数：`conversation_completion`(内部) `editor` `assistant` `copilot` `document_faq_generation` `conversation_faq_generation` `conversation_faq_matching` `help_center_article_generation` `onboarding_content_generation` `help_center_query_translation` = 10 个。
 >
 > `pdf_faq_generation` 不能用 `qwen3.8-flash` —— 实测 `fileid://` 在 flash/max/plus 上被**静默忽略**（§5.1）。这是全设计唯一需要第二个模型的地方。
 
-选 `qwen3.8-flash` 覆盖 9 个 chat feature 的依据：实测它在抽取任务上与 `qwen3.8-max` 打平（长文档 13.7s/19 条 vs 14.7s/18 条，事实覆盖完全一致），且默认思考可在配置层关闭（见 §7.2）。单一模型也把 `llm.yml` 的维护面压到最小。
+选 `qwen3.8-flash` 覆盖 10 个文本类 feature 的依据：实测它在抽取任务上与 `qwen3.8-max` 打平（长文档 13.7s/19 条 vs 14.7s/18 条，事实覆盖完全一致），且默认思考可在配置层关闭（见 §7.2）。单一模型也把 `llm.yml` 的维护面压到最小。
 
 选 `qwen3.7-text-embedding` 而非 `text-embedding-v4` 的依据：后者**不在 `/models` 列表中**，属于旧代命名，与本次评估中遇到的三个下线模型同一模式；前者在列表中、支持 1536 维、长输入上限更宽松。两者都实测支持 `dimensions: 1536`。
 
@@ -487,7 +489,7 @@ Captain::Document.where.not(openai_file_id: nil).update_all(openai_file_id: nil)
 | **`qwen3.8-flash` 自身也会下线** | 这正是 §7 存在的理由：届时只需改 `CAPTAIN_OPEN_AI_MODEL` + 注册新 id，不用重建 |
 | **`PINNED_MODEL_FEATURES` 是会腐烂的硬编码名单** | 上游若新增需要固定模型的 feature，名单不更新就会重复本次的静默编造。缓解：名单旁注释指向本文档 §5.1；每次跟进上游 `llm.yml` 变更时对照检查 |
 | **`fileid://` 的静默忽略是本设计最大隐患** | 已用 §7.5 的护栏挡住"换错模型"，但护栏只校验模型名。若 Alibaba 未来改了 `qwen-long` 的行为，护栏不会发现。缓解：§10 第 4 条要求人工抽 3 条 FAQ 回原文核对 |
-| **PDF 路径破坏了 provider 可移植性** | §7 的"切 provider 零重建"对 9 个 chat feature + embedding 成立，但 **PDF 不行**：`fileid://` 是 DashScope 专有，切回 OpenAI 要改回 `file: { file_id: }` 的代码。这是选路 B 的已知代价 |
+| **PDF 路径破坏了 provider 可移植性** | §7 的"切 provider 零重建"对 10 个文本类 feature + embedding 成立，但 **PDF 不行**：`fileid://` 是 DashScope 专有，切回 OpenAI 要改回 `file: { file_id: }` 的代码。这是选路 B 的已知代价 |
 | **音频转写停用** | endpoint 切到 DashScope 后 `SpeechToTextService` 会拿到 `gpt-4o-mini-transcribe` 打向不存在的 `/audio/transcriptions`。该 feature 未启用故无影响，但 llm.yml 里 `audio_transcription` 的条目成为死配置。若要启用需另找方案 |
 | **延迟可能回归（取决于连接复用）** | 见 §10 第 8 条与附录 B。`api.openai.com` 有悉尼本地 PoP，DashScope 没有；若每次调用新建 TLS 连接，切过去每调用多 ~580ms |
 | **PDF 换到 `qwen-long` 后的成本未核算** | 它从 `gpt-4.1-mini`（$0.40/$1.60）换成 `qwen-long`，而 `qwen-long` 的单价未采集（阿里云对 qwen-long 的计价与 flash 不同档）。附录 C 的降本估算只覆盖 chat feature，未含 PDF |
