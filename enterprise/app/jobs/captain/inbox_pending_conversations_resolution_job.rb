@@ -57,7 +57,13 @@ class Captain::InboxPendingConversationsResolutionJob < ApplicationJob
   end
 
   def resolvable_pending_conversations(inbox)
+    # A conversation the customer never wrote in has no request to complete and nothing to hand
+    # off, so it is not eligible for either outcome. Skipping it here keeps conversations opened
+    # by an opening/welcome message out of the resolution and handoff paths entirely.
     inbox.conversations.pending
+         .joins(:messages)
+         .where(messages: { message_type: :incoming, private: false })
+         .distinct
          .where('last_activity_at < ?', inactivity_cutoff_time)
          .limit(Limits::BULK_ACTIONS_LIMIT)
   end
