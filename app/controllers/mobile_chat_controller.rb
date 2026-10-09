@@ -1,8 +1,10 @@
 class MobileChatController < ActionController::Base
   layout false
 
-  # Renders nothing itself: it only builds the widget token and hands the browser over to
-  # the stock widget, which is why neither widgets/show.html.erb nor the widget app change.
+  # Renders nothing itself: it builds the widget token and hands the browser over to the stock
+  # widget. The two extra query terms it passes are read by the widget app: `locale` (so the
+  # panel's chrome follows the customer's language) and `cw_handoff` (which tells the widget this
+  # is our session entry rather than an SDK embed, so it fetches the conversation itself).
   def show
     chat_session = MobileChat::SessionStore.read(params[:session])
     return render_expired if chat_session.blank?
