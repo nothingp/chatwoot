@@ -57,6 +57,9 @@
   "BUBBLE": {
     "LABEL": "Sohbet et"
   },
+  "CARD": {
+    "ALTERNATIVES": "Şunları da değerlendirebilirsin"
+  },
   "POWERED_BY": "Chatwoot tarafından desteklenmektedir",
   "EMAIL_PLACEHOLDER": "Lütfen E-postanızı Girin",
   "CHAT_PLACEHOLDER": "Mesajınız",

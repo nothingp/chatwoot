@@ -57,6 +57,9 @@
   "BUBBLE": {
     "LABEL": "Čavrljajte s nama"
   },
+  "CARD": {
+    "ALTERNATIVES": "Možete razmotriti i"
+  },
   "POWERED_BY": "Pokreće Chatwoot",
   "EMAIL_PLACEHOLDER": "Unesite svoju e-mail adresu",
   "CHAT_PLACEHOLDER": "Unesite svoju poruku",

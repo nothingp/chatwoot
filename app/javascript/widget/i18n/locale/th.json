@@ -57,6 +57,9 @@
   "BUBBLE": {
     "LABEL": "คุยกับเรา"
   },
+  "CARD": {
+    "ALTERNATIVES": "คุณอาจพิจารณาแพ็กเกจเหล่านี้ด้วย"
+  },
   "POWERED_BY": "Powered by Chatwoot",
   "EMAIL_PLACEHOLDER": "กรุณากรอกอีเมล์ของคุณ",
   "CHAT_PLACEHOLDER": "พิมพ์ข้อความ",

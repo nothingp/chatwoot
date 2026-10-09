@@ -57,6 +57,9 @@
   "BUBBLE": {
     "LABEL": "Chat met ons"
   },
+  "CARD": {
+    "ALTERNATIVES": "Je kunt ook overwegen"
+  },
   "POWERED_BY": "Mogelijk gemaakt door Chatwoot",
   "EMAIL_PLACEHOLDER": "Voer uw e-mailadres in",
   "CHAT_PLACEHOLDER": "Typ uw bericht",

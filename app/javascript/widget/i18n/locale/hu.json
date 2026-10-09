@@ -57,6 +57,9 @@
   "BUBBLE": {
     "LABEL": "Chatelj velünk"
   },
+  "CARD": {
+    "ALTERNATIVES": "Ezeket is érdemes megfontolni"
+  },
   "POWERED_BY": "Chatwoot",
   "EMAIL_PLACEHOLDER": "Add meg az e-mailed",
   "CHAT_PLACEHOLDER": "Gépeld be üzeneted",

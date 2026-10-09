@@ -57,6 +57,9 @@
   "BUBBLE": {
     "LABEL": "Biz bilan suhbatlashing"
   },
+  "CARD": {
+    "ALTERNATIVES": "Bularni ham ko‘rib chiqishingiz mumkin"
+  },
   "POWERED_BY": "Chatwoot yordamida ishlaydi",
   "EMAIL_PLACEHOLDER": "Iltimos, emailingizni kiriting",
   "CHAT_PLACEHOLDER": "Xabaringizni yozing",

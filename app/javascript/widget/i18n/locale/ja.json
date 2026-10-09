@@ -57,6 +57,9 @@
   "BUBBLE": {
     "LABEL": "チャットをする"
   },
+  "CARD": {
+    "ALTERNATIVES": "こちらも検討できます"
+  },
   "POWERED_BY": "提供：Chatwoot",
   "EMAIL_PLACEHOLDER": "メールアドレスを入力してください。",
   "CHAT_PLACEHOLDER": "メッセージを入力してください。",

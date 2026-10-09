@@ -57,6 +57,9 @@
   "BUBBLE": {
     "LABEL": "Chatta con noi"
   },
+  "CARD": {
+    "ALTERNATIVES": "Puoi anche considerare"
+  },
   "POWERED_BY": "Offerto da Chatwoot",
   "EMAIL_PLACEHOLDER": "Inserisci la tua email",
   "CHAT_PLACEHOLDER": "Scrivi il tuo messaggio",

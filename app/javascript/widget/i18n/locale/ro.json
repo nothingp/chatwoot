@@ -57,6 +57,9 @@
   "BUBBLE": {
     "LABEL": "Discută cu noi"
   },
+  "CARD": {
+    "ALTERNATIVES": "Poți lua în considerare și"
+  },
   "POWERED_BY": "Oferit de Chatwoot",
   "EMAIL_PLACEHOLDER": "Te rugăm să introduci adresa de e-mail",
   "CHAT_PLACEHOLDER": "Scrie mesajul tău",

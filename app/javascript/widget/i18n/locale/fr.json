@@ -57,6 +57,9 @@
   "BUBBLE": {
     "LABEL": "Discutez avec nous"
   },
+  "CARD": {
+    "ALTERNATIVES": "Vous pouvez aussi envisager"
+  },
   "POWERED_BY": "Propulsé par Chatwoot",
   "EMAIL_PLACEHOLDER": "Veuillez saisir votre adresse de courriel",
   "CHAT_PLACEHOLDER": "Tapez votre message",

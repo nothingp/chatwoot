@@ -57,6 +57,9 @@
   "BUBBLE": {
     "LABEL": "Συνομιλήστε μαζί μας"
   },
+  "CARD": {
+    "ALTERNATIVES": "Μπορείς επίσης να εξετάσεις"
+  },
   "POWERED_BY": "με την δύναμη του Chatwoot",
   "EMAIL_PLACEHOLDER": "Παρακαλώ εισάγετε το email σας",
   "CHAT_PLACEHOLDER": "Πληκτρολογήστε το μήνυμά σας",

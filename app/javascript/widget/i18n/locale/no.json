@@ -57,6 +57,9 @@
   "BUBBLE": {
     "LABEL": "Chat med oss"
   },
+  "CARD": {
+    "ALTERNATIVES": "Du kan også vurdere"
+  },
   "POWERED_BY": "Drevet av Chatwoot",
   "EMAIL_PLACEHOLDER": "Skriv inn din e-post",
   "CHAT_PLACEHOLDER": "Skriv inn meldingen",
