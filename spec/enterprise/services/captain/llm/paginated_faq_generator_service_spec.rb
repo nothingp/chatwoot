@@ -16,10 +16,12 @@ RSpec.describe Captain::Llm::PaginatedFaqGeneratorService do
   end
 
   describe '#generate' do
-    it 'uses the PDF FAQ generation feature model' do
+    it 'uses the model the router resolves, ignoring an override the feature no longer offers' do
+      # pdf_faq_generation only offers qwen-long, so a stale override of a model that cannot read
+      # fileid:// is dropped by the router instead of reaching the guard in the constructor.
       document.account.update!(captain_models: { 'pdf_faq_generation' => 'gpt-5.2' })
 
-      expect(service.model).to eq('gpt-5.2')
+      expect(service.model).to eq('qwen-long')
     end
 
     context 'when document lacks OpenAI file ID' do
@@ -91,6 +93,45 @@ RSpec.describe Captain::Llm::PaginatedFaqGeneratorService do
         service.generate
         expect(service.iterations_completed).to eq(20)
       end
+    end
+  end
+
+  describe 'model guard' do
+    it 'raises when the resolved model cannot read fileid:// references' do
+      allow(Llm::FeatureRouter).to receive(:resolve).and_return(model: 'qwen3.8-flash')
+
+      expect { described_class.new(document) }
+        .to raise_error(CustomExceptions::Pdf::FaqGenerationError, %r{fileid://.*qwen3\.8-flash})
+    end
+
+    it 'accepts qwen-long' do
+      allow(Llm::FeatureRouter).to receive(:resolve).and_return(model: 'qwen-long')
+
+      expect { described_class.new(document) }.not_to raise_error
+    end
+  end
+
+  describe '#build_chunk_parameters' do
+    before do
+      allow(document).to receive(:openai_file_id).and_return('file-123')
+      allow(Llm::FeatureRouter).to receive(:resolve).and_return(model: 'qwen-long')
+    end
+
+    it 'references the uploaded file through a fileid system message' do
+      service = described_class.new(document)
+
+      params = service.send(:build_chunk_parameters, 1, 10)
+
+      expect(params[:messages].first).to eq(role: 'system', content: "fileid://#{document.openai_file_id}")
+    end
+
+    it 'keeps the chunk instructions in the user message' do
+      service = described_class.new(document, pages_per_chunk: 5)
+
+      params = service.send(:build_chunk_parameters, 1, 10)
+
+      expect(params[:messages].map { |message| message[:role] }).to eq(%w[system user])
+      expect(params[:messages].last[:content]).to include('page 1')
     end
   end
 

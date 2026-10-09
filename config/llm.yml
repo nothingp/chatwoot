@@ -188,7 +188,9 @@ features:
       ]
     default: qwen3.8-flash
   pdf_faq_generation:
-    models: [gpt-4.1-mini, gpt-5-mini, gpt-4.1, gpt-5.1, gpt-5.2, qwen-long]
+    # qwen-long only: the service references the uploaded PDF through fileid://, which every other
+    # model silently ignores and answers from its own knowledge instead. See the design doc §5.1.
+    models: [qwen-long]
     default: qwen-long
   help_center_article_generation:
     models:
