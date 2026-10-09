@@ -11,13 +11,18 @@ class MobileChatController < ActionController::Base
     contact_inbox = ::ContactInbox.find_by(id: chat_session['contact_inbox_id'])
     return render_expired if inbox.blank? || contact_inbox.blank?
 
-    # The widget reads its own UI language from this parameter, so the panel's chrome has to follow
-    # the locale the session recorded on the contact. A blank value is dropped rather than sent as
-    # an empty parameter, which would override the inbox default with nothing.
+    # The widget applies this parameter on top of the account locale, so the panel's chrome follows
+    # the locale the session recorded on the contact. A blank value is omitted rather than sent empty,
+    # which leaves the widget's normal resolution alone.
+    # cw_handoff marks this entry as ours: the widget is embedded without the official SDK here, so
+    # it has to fetch the conversation history itself instead of waiting for the config-set handshake.
     redirect_to widget_path({
       website_token: inbox.channel.website_token,
       cw_conversation: widget_token(inbox, contact_inbox),
-      locale: contact_inbox.contact.custom_attributes['locale']
+      cw_handoff: '1',
+      # The contact can be gone while its contact inbox is not: the delete is async, and the widget
+      # self-heals by creating a fresh contact, so this must not raise in that window.
+      locale: contact_inbox.contact&.custom_attributes&.dig('locale')
     }.compact_blank)
   end
 

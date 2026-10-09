@@ -58,10 +58,11 @@ export default {
     isIFrame() {
       return IFrameHelper.isIFrame();
     },
-    // Our session entry (/mobile-chat handoff) is the only embed that carries
-    // cw_conversation; the official SDK embed does not.
+    // cw_handoff is minted only by our /mobile-chat handoff redirect. cw_conversation
+    // cannot serve as the marker: the official SDK also puts it in the widget URL
+    // whenever its 365-day cookie exists (sdk/IFrameHelper.js).
     hasSessionHandoff() {
-      return new URLSearchParams(window.location.search).has('cw_conversation');
+      return new URLSearchParams(window.location.search).has('cw_handoff');
     },
     isRNWebView() {
       return RNHelper.isRNWebView();
@@ -100,9 +101,9 @@ export default {
     this.setWidgetColor(widgetColor);
     this.setWidgetColorVariable(widgetColor);
     setHeader(window.authToken);
-    // The session entry also fetches for itself inside an iframe: it is embedded without the
-    // official SDK, so the config-set handshake never arrives and the messages reach the UI by a
-    // path that drops content_type, which degrades card messages to plain text.
+    // Our session handoff also fetches inside an iframe: it is embedded without the official SDK,
+    // so the config-set handshake never arrives and the widget never fetches the conversation
+    // history at all. Fetching on this entry closes that gap.
     const selfFetches = !this.isIFrame || this.hasSessionHandoff;
     if (selfFetches) {
       this.fetchOldConversations();

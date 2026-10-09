@@ -149,8 +149,27 @@ export default {
   mounted() {
     this.hasImageError = false;
     this.hasVideoError = false;
+    this.logContentTypeDebug();
   },
   methods: {
+    // TODO(mobile-chat): temporary diagnostic for the card-rendering investigation.
+    // Inert unless the widget is loaded with cw_debug=1; remove once diagnosed.
+    logContentTypeDebug() {
+      if (new URLSearchParams(window.location.search).get('cw_debug') !== '1') {
+        return;
+      }
+      const ownKeys = Object.keys(this.message);
+      // eslint-disable-next-line no-console
+      console.log('[mobile-chat][cw_debug] AgentMessage', {
+        messageId: this.message.id,
+        contentType: this.contentType,
+        hasContentTypeKey: Object.prototype.hasOwnProperty.call(
+          this.message,
+          'content_type'
+        ),
+        messageKeys: ownKeys,
+      });
+    },
     onImageLoadError() {
       this.hasImageError = true;
     },
