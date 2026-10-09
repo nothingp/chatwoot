@@ -408,6 +408,43 @@ Expected: PASS（含原有全部用例）
 
 > 本机跑不了。本机能做的是 Step 5。
 
+- [ ] **Step 4a: 给异常加 `message`（否则护栏等于没有）**
+
+`lib/custom_exceptions/base.rb` 是 `def initialize(data); @data = data; super(); end` —— **空括号**，传给 `StandardError` 的参数为零。实测 `CustomExceptions::Pdf::FaqGenerationError.new("x").message` 返回**类名**，`to_hash[:message]` 同理。所以护栏里那句"当前为 #{@model}"到不了任何地方。
+
+给 `CustomExceptions::Pdf::FaqGenerationError` 加（照 `lib/custom_exceptions/account.rb` 的既有做法）：
+
+```ruby
+  class FaqGenerationError < CustomExceptions::Base
+    def initialize(message = 'PDF FAQ generation failed')
+      super(message)
+    end
+
+    def message
+      @data
+    end
+  end
+```
+
+**不要改 `Base`** —— 那会改掉所有 `CustomExceptions::*` 子类的 `message`，其中若干个进 API 响应。`Base` 这个缺陷是既有的，单独记着。
+
+- [ ] **Step 4b: 收窄 `pdf_faq_generation` 的模型白名单**
+
+护栏只是"大声失败"；Super Admin 的下拉此刻仍列着 5 个 OpenAI 模型，等于 UI 主动邀请那个硬失败。把 `config/llm.yml` 里 `pdf_faq_generation` 的 `models:` 改成只剩 `qwen-long`。
+
+顺带把该任务里那条既有用例按新现实重定向（护栏现在对这个模型就是会抛）：
+
+```ruby
+    it 'uses the model the router resolves for the feature' do
+      document.account.update!(captain_models: { 'pdf_faq_generation' => 'gpt-5.2' })
+
+      expect { described_class.new(document) }
+        .to raise_error(CustomExceptions::Pdf::FaqGenerationError, /gpt-5\.2/)
+    end
+```
+
+保留它而不是删掉：它是**唯一**在 service 层面证明"模型来自 router 而非硬编码"的用例，而匹配模型名把这个破坏变成了对路由的正向断言。
+
 - [ ] **Step 5: 本机验证**
 
 ```bash
@@ -805,7 +842,11 @@ git commit -m "refactor(captain): drop the hardcoded assistant model and route f
 **Files:**
 - Modify: `enterprise/app/services/captain/llm/pdf_processing_service.rb`
 - Modify: `enterprise/app/services/captain/llm/paginated_faq_generator_service.rb`
+- Modify: **`lib/custom_exceptions/pdf.rb`**（给 `FaqGenerationError` 加 `def message` —— 不加的话护栏的"当前为 X"到不了日志/Sentry/spec）
+- Modify: **`config/llm.yml`**（把 `pdf_faq_generation` 的 `models:` 收窄成只剩 `qwen-long`，见 Step 4b）
 - Test: `spec/enterprise/services/captain/llm/pdf_processing_service_spec.rb`、`spec/enterprise/services/captain/llm/paginated_faq_generator_service_spec.rb`
+
+> ⚠️ **这份清单曾被两处假设推翻**（T7 实现者实测后反馈）：`pdf_processing_service_spec.rb` 里**没有** `purpose: 'assistants'` 断言可改（上传的 double 是裸 `double`、没有 `.with`）；`paginated_faq_generator_service_spec.rb` 里也**没有** `build_user_content` / `file:` 的断言可改。两处都改为**新增**用例，见 Step 4。
 
 **Interfaces:**
 - Consumes: `Llm::Models.model_params`（Task 1，本任务不用）；`Llm::FeatureRouter`（Task 6 之后 `pdf_faq_generation` 默认 = `qwen-long`）
@@ -908,7 +949,9 @@ git commit -m "refactor(captain): drop the hardcoded assistant model and route f
   end
 ```
 
-再改一条现有断言（若它检查 `build_user_content` 或 `file:` 部件）为断言 system message 里的 `fileid://`：
+⚠️ **上面两条的 `/fileid:\/\//` 匹配要想通过，Step 4a 必须先做** —— 否则 `e.message` 是类名，正则永远不匹配。
+
+**新增**一条断言 system message 里的 `fileid://`（该文件里**没有**可改的旧断言，见上面的 ⚠️）。实现时注意：裸 factory document 的 `openai_file_id` 是 `nil`，断言会变成空过 —— 必须给一个真实的 id（如 `'file-123'`）：
 
 ```ruby
     it 'references the uploaded file through a fileid system message' do

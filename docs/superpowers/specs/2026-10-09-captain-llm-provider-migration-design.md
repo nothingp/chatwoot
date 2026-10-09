@@ -301,6 +301,7 @@ chat.with_provider_options(params) if params.any?
 |---|---|
 | `enterprise/app/services/captain/llm/pdf_processing_service.rb` | 上传 `purpose: 'assistants'` → `'file-extract'` |
 | `enterprise/app/services/captain/llm/paginated_faq_generator_service.rb` | 引用方式改为 `fileid://`；新增模型护栏（见下） |
+| **`lib/custom_exceptions/pdf.rb`** | 给 `FaqGenerationError` 加 `def message`（见下） |
 
 **引用方式的改造**：
 
@@ -341,11 +342,21 @@ def initialize(document, options = {})
   return if FILE_REFERENCE_MODELS.include?(@model)
 
   raise CustomExceptions::Pdf::FaqGenerationError,
-        "pdf_faq_generation 必须使用支持 fileid:// 的模型，当前为 #{@model}——该模型会静默忽略文件内容"
+        "pdf_faq_generation requires a model that honours fileid:// references, got #{@model}"
 end
 ```
 
 **顺带清理**：改成 `build_chunk_parameters` 后，原来的 `build_user_content` 不再被调用，应删除（CLAUDE.md：移除死代码）。
+
+⚠️ **护栏的消息必须能被看到，否则等于没有护栏。** `CustomExceptions::Base#initialize(data)` 的实现是 `@data = data; super()` —— **空括号的 `super()`**，传给 `StandardError` 的参数为零，所以 `e.message` 和 `e.to_hash[:message]` 都退化成类名。实测：
+
+```
+e.message  =>  "CustomExceptions::Pdf::FaqGenerationError"
+```
+
+因此必须给 `FaqGenerationError` 加 `def message; @data; end`（照仓库既有做法 `lib/custom_exceptions/account.rb`）。**不要改 `Base`** —— 那会改变所有 `CustomExceptions::*` 子类的 `message`，其中若干个直接进 API 响应，辐射面远超本任务。`Base` 这个缺陷是既有的，单独记着。
+
+⚠️ **`pdf_faq_generation` 的白名单要收窄成只剩 `qwen-long`。** 护栏只是"大声失败"，而 Super Admin 的模型下拉此刻仍列着 5 个 OpenAI 模型 —— 等于 UI 主动邀请那个硬失败。它们在该 feature 上**确实无效**（服务现在发 `fileid://`，别的模型读不了），所以从 `models:` 列表里删掉，让护栏退居"直接改配置时的兜底"。
 
 **字段名不清不楚但本次不改**：`document.openai_file_id` / `store_openai_file_id` 切换后存的是 DashScope file id。改列名要迁移 + 触及多个调用点，属独立清理工作；本次只在代码处加注释说明。
 
