@@ -65,7 +65,7 @@ RSpec.describe 'Public mobile chat session API', type: :request do
     expect(query.first.last).to match(/\A[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\z/)
   end
 
-  it 'returns expiresAt as milliseconds inside the 20 minute window' do
+  it 'returns expiresAt as milliseconds inside the configured widget token expiry window' do
     with_modified_env(FRONTEND_URL: frontend_url) do
       post '/public/api/v1/mobile_chat/session', params: payload, as: :json
     end
@@ -73,7 +73,7 @@ RSpec.describe 'Public mobile chat session API', type: :request do
     now = Time.current.to_i * 1000
     expect(response.parsed_body['expiresAt']).to be_a(Integer)
     expect(response.parsed_body['expiresAt']).to be > now + 1_000
-    expect(response.parsed_body['expiresAt']).to be <= now + (20 * 60 * 1000)
+    expect(response.parsed_body['expiresAt']).to be <= now + (Widget::TokenService.expiry_days.days.to_i * 1000)
   end
 
   it 'creates one guest contact and reuses the same contact inbox on the next call' do
