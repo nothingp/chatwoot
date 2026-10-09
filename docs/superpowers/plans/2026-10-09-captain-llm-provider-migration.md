@@ -662,8 +662,11 @@ deploy/upstream-comparison/deploy.sh                # 确认后部署
 - Modify: `lib/llm/feature_router.rb`
 - Modify: `enterprise/app/fields/captain_model_overrides_field.rb`
 - Modify: `enterprise/app/models/concerns/agentable.rb`（`agent_model`）
+- Modify: **`app/controllers/api/v1/accounts/captain/preferences_controller.rb`**（`#default_model_for` 里有一行特判引用了 `CAPTAIN_V2_ASSISTANT_MODEL` —— 删常量时必须一并删掉，否则 `NameError`）
 - Modify: `config/llm.yml`（各 feature 的 `default:`）
-- Test: `spec/lib/llm/feature_router_spec.rb`、`spec/lib/llm/models_spec.rb`、`spec/enterprise/models/concerns/agentable_spec.rb`
+- Test: `spec/lib/llm/feature_router_spec.rb`、`spec/lib/llm/models_spec.rb`、`spec/enterprise/models/concerns/agentable_spec.rb`、**`spec/controllers/api/v1/accounts/captain/preferences_controller_spec.rb`**
+
+> ⚠️ 这份清单**曾经漏了** `preferences_controller.rb` 与它的 spec —— 那处引用是 T6 实现者 grep 出来才发现的。**动 `CAPTAIN_V2_ASSISTANT_MODEL` 前先 `grep -rn CAPTAIN_V2_ASSISTANT_MODEL app lib enterprise spec`**，别信清单。
 
 **Interfaces:**
 - Consumes: `Llm::FeatureRouter::PINNED_MODEL_FEATURES`（Task 3）
