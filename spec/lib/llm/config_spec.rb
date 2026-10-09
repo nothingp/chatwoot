@@ -13,4 +13,13 @@ RSpec.describe Llm::Config do
       RubyLLM.configure { |config| config.openai_api_base = original_base }
     end
   end
+
+  describe 'ruby_llm OpenAI role configuration' do
+    it 'sends the system role instead of developer' do
+      described_class.reset!
+      described_class.initialize!
+
+      expect(RubyLLM.config.openai_use_system_role).to be(true)
+    end
+  end
 end
