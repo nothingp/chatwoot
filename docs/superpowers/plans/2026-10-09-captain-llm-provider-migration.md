@@ -107,7 +107,7 @@ Expected: FAIL —— `undefined method 'model_params' for Llm::Models`
 在 `lib/llm/models.rb` 的 `model_config` 之后插入：
 
 ```ruby
-    # 键必须 symbol 化 —— 调用方用 **params 传给 RubyLLM，它按 Symbol 取值。
+    # Keys must be symbols: callers splat these into RubyLLM, which reads them by symbol.
     def model_params(model_name)
       model_config(model_name)&.dig('params')&.symbolize_keys || {}
     end
@@ -355,7 +355,9 @@ git commit -m "feat(captain): register qwen models in llm.yml and the ruby_llm r
     it 'does not apply the installation model to pinned features' do
       resolved = described_class.resolve(feature: 'pdf_faq_generation', account: account)
 
-      expect(resolved).to include(model: 'gpt-4.1-mini', source: :default)
+      # 断言「落到该 feature 自己的 default」而不是写死某个模型名 ——
+      # T6 会把 pdf_faq_generation 的 default 改成 qwen-long，写死会让这条用例在 T6 变红。
+      expect(resolved).to include(model: Llm::Models.default_model_for('pdf_faq_generation'), source: :default)
     end
 
     it 'pins exactly the features that cannot follow the global chat model' do
@@ -371,13 +373,9 @@ Expected: FAIL —— `editor` 的 `source` 是 `:default` 而非 `:installation
 
 - [ ] **Step 3: 实现**
 
-把 `lib/llm/feature_router.rb` 里的 `installation_model_override` 换成：
+把 `lib/llm/feature_router.rb` 里的 `installation_model_override` 换成（只改这一行判断，方法其余部分不动）：
 
 ```ruby
-    # pdf_faq_generation 必须用支持 fileid:// 的模型（qwen-long），audio_transcription 已停用。
-    # 两者都不能跟随 installation 级的 chat 模型 —— 详见 docs/superpowers/specs/2026-10-09-captain-llm-provider-migration-design.md §5.1
-    PINNED_MODEL_FEATURES = %w[pdf_faq_generation audio_transcription].freeze
-
     def installation_model_override(feature_key)
       return if PINNED_MODEL_FEATURES.include?(feature_key)
       return unless ChatwootApp.self_hosted_paid?
@@ -386,6 +384,8 @@ Expected: FAIL —— `editor` 的 `source` 是 `:default` 而非 `:installation
     end
 ```
 
+⚠️ `PINNED_MODEL_FEATURES` **不在** `class << self` 里 —— 它定义在模块顶层（缩进两格），见下一块。放进 `class << self` 会让它变成类方法作用域下的常量，`installation_model_override` 里的引用仍能解析，但 `described_class::PINNED_MODEL_FEATURES`（测试用的常量引用）语义就不同了。
+
 常量放在 `class << self` 之外（与既有的 `CAPTAIN_V2_ASSISTANT_MODEL` 同级，模块顶层）：
 
 ```ruby
@@ -393,6 +393,9 @@ module Llm::FeatureRouter
   class UnknownFeatureError < StandardError; end
 
   CAPTAIN_V2_ASSISTANT_MODEL = 'gpt-5.2'.freeze
+  # pdf_faq_generation needs a model that honours DashScope's fileid:// references (qwen-long) and
+  # audio_transcription is disabled, so neither may follow the installation-level chat model.
+  # See the design doc §5.1: docs/superpowers/specs/2026-10-09-captain-llm-provider-migration-design.md
   PINNED_MODEL_FEATURES = %w[pdf_faq_generation audio_transcription].freeze
 
   class << self
@@ -460,8 +463,8 @@ Expected: FAIL —— expected true, got nil
 
 ```ruby
         config.openai_protocol = :chat_completions
-        # ruby_llm 的 chat_completions 协议默认发 'developer' role；DashScope 只认 'system'。
-        # OpenAI 两者都接受，所以全局打开，不需要按 provider 分支。
+        # ruby_llm's chat_completions protocol sends the 'developer' role by default; DashScope
+        # only accepts 'system'. OpenAI accepts both, so enable it globally rather than branching.
         config.openai_use_system_role = true
 ```
 
@@ -853,8 +856,9 @@ git commit -m "refactor(captain): drop the hardcoded assistant model and route f
 在 `paginated_faq_generator_service.rb` 的类顶部（`MAX_ITERATIONS` 之后）加常量：
 
 ```ruby
-  # fileid:// 在不支持它的模型上会被静默忽略 —— 模型改用自身知识编 FAQ 且不报错。
-  # 宁可响亮失败，也不能把编造的 FAQ 写进知识库。详见设计文档 §5.1。
+  # fileid:// is silently ignored by models that do not support it: they answer from their own
+  # knowledge instead of erroring. Fail loudly rather than let invented FAQs reach the knowledge
+  # base. See the design doc §5.1.
   FILE_REFERENCE_MODELS = %w[qwen-long].freeze
 ```
 
