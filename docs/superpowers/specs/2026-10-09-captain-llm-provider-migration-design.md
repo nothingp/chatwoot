@@ -22,7 +22,7 @@ Captain 当前所有 LLM 调用走 OpenAI。迁移到阿里云 DashScope（百�
 
 - Captain 的 chat 与 embedding 全部由 DashScope 提供
 - 切 provider（DashScope ↔ OpenAI）或换模型 id，对 **10 个文本类 feature 与 embedding** = 改配置 + 进程重启，**不改代码、不重建镜像**
-- 向量迁移零内容损失
+- 向量迁移：三张表全清重建（**不是零损失** —— 人工编辑过的 FAQ 与待审建议会丢，见 §8.2）
 
 > ⚠️ 「不改代码」有一个例外：**`pdf_faq_generation` 不可移植**。它的 `fileid://` 引用方式是 DashScope 专有，切回 OpenAI 需改代码（§7.5、§12）。这是选路 B 的已知代价，不是遗漏。
 
@@ -384,50 +384,51 @@ volumes:
 - **`app/services/llm/legacy_base_open_ai_service.rb` 不在列表里** —— 它读的 endpoint/key 现在指向 DashScope 即可，不需要改（§5）。
 - InstallationConfig 无需新增 —— PDF 迁移后不再需要单独的 OpenAI 配置线，这是选路 B 带来的简化。
 
-## 8. 向量迁移
+## 8. 向量迁移：三张表全清重建
 
-### 8.1 零内容损失
+> **本节由人工伙伴在 2026-10-09 的评审中改过。** 原设计是"不删数据、只重算向量"（零内容损失）；现改为**先清空三张向量表、再重新生成**。理由由伙伴给出，本设计不代为推断。下面的内容按新策略重写，**旧策略的"零内容损失"结论不再成立**。
 
-三张表存的都是 embedding 向量，而对**已有内容**计算：
+### 8.1 清空范围
 
-| 表 | 嵌入的内容 | 索引名 |
+| 表 | 清空后如何重建 | 索引名 |
 |---|---|---|
-| `captain_assistant_responses` | `"#{question}: #{answer}"` | `vector_idx_knowledge_entries_embedding` |
-| `captain_faq_suggestions` | `"#{question}: #{answer}"` | `vector_idx_captain_faq_suggestions_embedding` |
-| `article_embeddings` | `term` | `index_article_embeddings_on_embedding` |
+| `captain_assistant_responses`（FAQ 知识库） | **重跑 FAQ 生成**（`document_faq_generation` / `pdf_faq_generation` / `conversation_faq_generation`），不是重算向量 | `vector_idx_knowledge_entries_embedding` |
+| `captain_faq_suggestions`（待审建议） | 由会话 FAQ 生成重新产生 | `vector_idx_captain_faq_suggestions_embedding` |
+| `article_embeddings`（帮助中心检索） | 由帮助中心文章重新索引 | `index_article_embeddings_on_embedding` |
 
-三者都有回调在 `saved_change_to_*? || embedding.nil?` 时入队 `Captain::Llm::UpdateEmbeddingJob`。因此**不需要删除数据、不需要重新生成 FAQ，人工编辑过的条目也保留**——只需重算向量。
+⚠️ **这是"重新生成"，不是"重算向量"。** 两件事的代价差一个量级：
 
-### 8.2 重算
+- 重算向量 = 对**已有内容**调 embedding 接口（快、便宜）
+- 重新生成 = 对每个文档**重跑一次 LLM 调用产出 FAQ**（慢、贵，且受文档数量支配）
 
-```ruby
-Captain::AssistantResponse.find_each { |r| Captain::Llm::UpdateEmbeddingJob.perform_now(r, "#{r.question}: #{r.answer}") }
-Captain::FaqSuggestion.find_each     { |s| Captain::Llm::UpdateEmbeddingJob.perform_now(s, "#{s.question}: #{s.answer}") }
-ArticleEmbedding.find_each           { |a| Captain::Llm::UpdateEmbeddingJob.perform_now(a, a.term) }
-```
+阶段②的 `CAPTAIN_OPEN_AI_MODEL` 一指向 qwen，这批生成就会走新模型 —— 这大概正是要清空的原因。
 
-串行执行，避免一次性打爆 DashScope 限流。
+### 8.2 明确会丢失的东西
 
-### 8.3 重建索引
+| 丢失项 | 能否找回 |
+|---|---|
+| 人工编辑过的 FAQ（`captain_assistant_responses.edited = true`） | ❌ **不能**。清空前必须先 `pg_dump` 备份（§9），否则永久丢失 |
+| 手工新增的 FAQ 条目 | ❌ 同上 |
+| `captain_faq_suggestions` 里的待审建议及其 `observations` | ❌ 不能找回，只能随新会话重新积累 |
+| 已审批状态（approved / dismissed） | ❌ 同上 |
 
-换 embedding 模型后整个向量分布改变，ivfflat 索引若不重建，召回会明显下降：
+**伙伴在"清 FAQ 知识库但先导回人工编辑过的条目"与"三张表全清"之间选了后者**，即已知并接受上面这些损失。
+
+### 8.3 执行顺序
 
 ```sql
-REINDEX INDEX vector_idx_knowledge_entries_embedding;
-REINDEX INDEX vector_idx_captain_faq_suggestions_embedding;
-REINDEX INDEX index_article_embeddings_on_embedding;
+-- 1) 先备份（见 §9），再清空。顺序不能反。
+--    索引随表数据一起失效，清空后重建数据再 REINDEX。
+TRUNCATE article_embeddings;
+TRUNCATE captain_faq_suggestions CASCADE;   -- 连带 faq_observations（依赖 delete_all）
+TRUNCATE captain_assistant_responses;
 ```
 
-### 8.4 迁移窗口
+⚠️ **`TRUNCATE captain_faq_suggestions CASCADE` 会连带清掉 `captain_faq_observations`** —— 那是"这条建议被问过几次"的原始计数，清掉后无法恢复。执行前确认 `captain_faq_observations` 也在 `pg_dump` 的范围内。
 
-新旧向量共用一个 ivfflat 索引，混在一起时距离度量无意义，检索结果是垃圾。
+⚠️ **不要用 `DELETE FROM`**：三张表都可能上万行，`DELETE` 会逐行写 WAL 并留下死元组。`TRUNCATE` 是 DDL，秒级完成且空间立即归还。
 
-| 环境 | 策略 |
-|---|---|
-| `:81` | 不停机，接受窗口内检索降级 |
-| 生产 | **停机迁移**：停 Captain 相关 worker → 重算 → REINDEX → 恢复 |
-
-### 8.5 PDF 文件重新上传
+### 8.4 PDF 文件重新上传
 
 `document.openai_file_id` 存的是 **OpenAI 侧的文件 id**（`file-...`），DashScope 无法解析。切到 DashScope 后这些 id 全部失效。
 
@@ -442,17 +443,46 @@ Captain::Document.where.not(openai_file_id: nil).update_all(openai_file_id: nil)
 
 **规模待查** —— 原本安排了一次查询统计 `captain_documents` 中 `openai_file_id` 非空的行数，该查询超时失败，未取到数字。实施前需补测，以决定是逐条重传还是批量重跑。
 
+### 8.5 重建
+
+1. **FAQ 知识库**：对每个 `Captain::Document` 重跑生成
+   - PDF 文档走 `PaginatedFaqGeneratorService`（**依赖 §8.4 的文件重传先完成**，否则 `openai_file_id` 为空会抛异常）
+   - 非 PDF 文档走 `document_faq_generation`
+2. **帮助中心**：重新索引文章（`ArticleEmbedding` 由文章的 `after_save` 钩子产生）
+3. **待审建议**：随新会话自然重新积累，无主动重建路径
+
+重建顺序上**先做 §8.4 的 PDF 文件重传，再跑本节生成**，否则 PDF 那条会大声失败。
+
+### 8.6 重建索引
+
+向量重新写入后，ivfflat 索引必须重建 —— 否则召回会明显下降：
+
+```sql
+REINDEX INDEX vector_idx_knowledge_entries_embedding;
+REINDEX INDEX vector_idx_captain_faq_suggestions_embedding;
+REINDEX INDEX index_article_embeddings_on_embedding;
+```
+
+### 8.7 迁移窗口
+
+新旧向量共用一个 ivfflat 索引，混在一起时距离度量无意义，检索结果是垃圾。
+
+| 环境 | 策略 |
+|---|---|
+| `:81` | 不停机，接受窗口内检索降级 |
+| 生产 | **停机迁移**：停 Captain 相关 worker → 重算 → REINDEX → 恢复 |
+
 ## 9. 回滚
 
 | 层次 | 手段 |
 |---|---|
 | 代码/配置 | `deploy/upstream-comparison/deploy.sh --tag <上一个 tag>` |
 | InstallationConfig | Super Admin 改回原值 |
-| **向量** | ⚠️ **回滚不了**——重算后要回 OpenAI 需再重算一遍 |
-| **PDF 文件 id** | ⚠️ 同样回不去——旧的 OpenAI `file-...` id 已被清空（§8.5），回滚后要重新上传 |
+| **向量** | ⚠️ **回滚不了**——清空重建后要回 OpenAI，得把三张表按新 provider 再重建一遍 |
+| **PDF 文件 id** | ⚠️ 同样回不去——旧的 OpenAI `file-...` id 已被清空（§8.4），回滚后要重新上传 |
 
 **对策**：
-- 迁移前 `pg_dump` 三张表的 `id, embedding` 两列 —— 回滚时恢复备份，避免二次全量重算
+- 迁移前 `pg_dump` 三张向量表**整表**（不是只 `id, embedding` 两列）—— 新策略是清空重建，只备份向量列救不回被清掉的行内容。同时备份 `captain_faq_observations`（§8.3 的 CASCADE 会连带清掉它）
 - **同时备份 `captain_documents` 的 `id, openai_file_id`** —— 这样回滚时能直接还原旧的 OpenAI file id，不必重传 PDF
 
 ## 10. 验证清单
@@ -483,7 +513,7 @@ Captain::Document.where.not(openai_file_id: nil).update_all(openai_file_id: nil)
 | 段 | 内容 | 验证点 |
 |---|---|---|
 | ① 打底座 | 代码：§7.1、§7.3、§7.4、§7.6。配置：§7.2 的**新增部分**（把 qwen 条目加进 `models:` 与各 feature 白名单，**不改任何 `default:`**）。**endpoint 仍指 OpenAI** | **功能应完全不变**——干净的"没改坏"基线 |
-| ② 切换 | §7.5（PDF 两个 service）+ §7.2 的 `default:` 改写 + InstallationConfig 4 项 + §8 向量重算 + REINDEX + §8.5 PDF 重传 | §10 全部 8 条 |
+| ② 切换 | §7.5（PDF 两个 service）+ §7.2 的 `default:` 改写 + InstallationConfig 4 项 + §8 全清重建（清空 → PDF 重传 → 重跑 FAQ 生成 → REINDEX） | §10 全部 8 条 |
 | ③ 推生产 | 同一 commit tag + 停机迁移 | 同 §10 |
 
 ⚠️ **§7.5 的 PDF 改动不能放进第 ① 段。** 它写的是 DashScope 专有的 `fileid://` 与 `purpose: 'file-extract'`；endpoint 还指 OpenAI 时落地，PDF 生成会立刻坏掉 —— 第 ① 段"功能完全不变"就不成立了。
@@ -519,13 +549,13 @@ Captain::Document.where.not(openai_file_id: nil).update_all(openai_file_id: nil)
 | 1 | 换 chat 模型（同 provider，id **已注册**） | 改 `CAPTAIN_OPEN_AI_MODEL` → `docker compose restart rails sidekiq` | ❌ | ❌ |
 | 2 | 换 chat 模型（**新 id**） | 编辑宿主机 `llm.yml` + `llm_models.json`（volume 挂载）→ 同第 1 档 | ❌ | ❌ |
 | 3 | **切 provider**（chat + embedding） | 改 `CAPTAIN_OPEN_AI_ENDPOINT` / `CAPTAIN_OPEN_AI_MODEL` / `CAPTAIN_EMBEDDING_MODEL` → restart | ❌ | ✅ **必须** |
-| 4 | 改 `PINNED_MODEL_FEATURES` 里的 feature 模型，或改 PDF 的 provider | **改代码**（PDF 还需清空 `openai_file_id` 并重传，§8.5） | ✅（40 分钟） | 视情况 |
+| 4 | 改 `PINNED_MODEL_FEATURES` 里的 feature 模型，或改 PDF 的 provider | **改代码**（PDF 还需清空 `openai_file_id` 并重传，§8.4） | ✅（40 分钟） | 视情况 |
 
 > 「重启」的确切命令以 `deploy/upstream-comparison/README.md` 为准（该主机上 `docker compose` 需要 `sudo`，且 compose 文件在 `deploy/upstream-comparison/` 下）。
 
 **为什么第 3 档必须重启**：`Llm::Config.reset!` 全仓库无调用点，`initialize!` 又是 `@initialized` 记忆化的。chat 路径每次现读 InstallationConfig 故立即生效，**但 embedding 走全局 config，必须重启进程**。
 
-**为什么第 3 档必须重算向量**：换 embedding 模型就是换向量空间，三张表都要重算 + REINDEX（§8）。**只换 chat 模型（第 1、2 档）不受影响。**
+**为什么第 3 档必须重建**：换 embedding 模型就是换向量空间，三张表都要重建 + REINDEX（§8）。**只换 chat 模型（第 1、2 档）不受影响。**
 
 **第 2 档的前提是 §7.7 的 volume 挂载**。不挂的话，编辑 `llm.yml` 得改仓库 → 重建，就退化成第 4 档了。
 
@@ -536,17 +566,22 @@ Captain::Document.where.not(openai_file_id: nil).update_all(openai_file_id: nil)
 #    CAPTAIN_OPEN_AI_ENDPOINT      例 https://dashscope.aliyuncs.com/compatible-mode（不带 /v1）
 #    CAPTAIN_OPEN_AI_MODEL         例 qwen3.8-flash
 #    CAPTAIN_EMBEDDING_MODEL       例 qwen3.7-text-embedding
-# 2. 先备份（回滚用，见 §9）
-#    pg_dump ... -t captain_assistant_responses -t captain_faq_suggestions -t article_embeddings
-#    pg_dump ... -t captain_documents
-# 3. 停 Captain 相关 worker（生产环境；:81 可跳过）
-# 4. 重算向量（§8.2）→ REINDEX（§8.3）
-# 5. 重传 PDF（§8.5）
-# 6. 重启进程（刷新 embedding 的全局 config）
+# 2. 先备份（回滚用，见 §9）—— 顺序不能反，清空后没备份就永久丢失
+#    pg_dump ... -t captain_assistant_responses -t captain_faq_suggestions \
+#                  -t captain_faq_observations -t article_embeddings -t captain_documents
+# 3. 停 Captain 相关 worker（生产环境必须；:81 可跳过）
+# 4. 重启进程，让 embedding 的全局 config 指向新 provider
 #    docker compose restart rails sidekiq
-# 7. 跑 §10 的 8 条验证
-# 8. 恢复 worker
+#    —— 必须先重启再重建：否则重建出来的向量仍来自旧 provider，白跑一遍
+# 5. 清空三张向量表（§8.3）—— TRUNCATE，不是 DELETE
+# 6. 重传 PDF 文件（§8.4）—— 必须在第 7 步之前
+# 7. 重建 FAQ（§8.5）：逐文档重跑生成 → 这是最慢的一步，受文档数支配
+# 8. REINDEX 三个 ivfflat 索引（§8.6）
+# 9. 跑 §10 的 8 条验证
+# 10. 恢复 worker
 ```
+
+⚠️ **第 4 步的位置是这一版新加的**：原设计是"重算向量"（对已有内容调 embedding），而现在是"重新生成"（重跑 LLM）。**进程没重启就去生成，生成出来的内容仍是旧 provider 的** —— 因为 `Llm::Config` 的全局 config 是 `@initialized` 记忆化的（§12）。
 
 ### 13.2 明确不在本设计范围内的
 
