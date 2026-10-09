@@ -90,7 +90,7 @@ describe('PlanCards', () => {
     expect(cta.attributes('target')).toBe('_blank');
   });
 
-  test('renders the alternatives under the heading, each linking to its own plan', () => {
+  test('merges the alternatives into one card, one row per plan', () => {
     const wrapper = mountCards([card, alternative, secondAlternative]);
 
     expect(
@@ -101,12 +101,30 @@ describe('PlanCards', () => {
       '[data-test-id="plan-card-alternative"]'
     );
     expect(alternatives).toHaveLength(2);
-    expect(alternatives[0].text()).toContain('备选方案');
-    expect(alternatives[0].text()).toContain('无限流量');
-    expect(alternatives[0].text()).toContain('7天');
+    expect(alternatives[0].text()).toBe('无限流量 · 7天');
+    expect(alternatives[1].text()).toBe('3 GB · 7天');
     expect(alternatives[0].attributes('href')).toBe(alternative.actions[0].uri);
     expect(alternatives[1].attributes('href')).toBe(
       secondAlternative.actions[0].uri
+    );
+
+    // The first row has no divider and the ones after it carry the whole thing, style included:
+    // the widget ships no border-style reset, so dropping `border-solid` makes the hairline 0px.
+    expect(alternatives[0].classes()).not.toContain('border-t');
+    expect(alternatives[1].classes()).toEqual(
+      expect.arrayContaining(['border-t', 'border-solid', 'border-n-weak'])
+    );
+  });
+
+  test('shows an alternative missing a fact without a stray separator', () => {
+    const calendarOnly = {
+      ...secondAlternative,
+      facts: secondAlternative.facts.filter(fact => fact.icon === 'calendar'),
+    };
+    const wrapper = mountCards([card, calendarOnly]);
+
+    expect(wrapper.find('[data-test-id="plan-card-alternative"]').text()).toBe(
+      '7天'
     );
   });
 
