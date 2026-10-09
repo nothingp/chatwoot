@@ -135,7 +135,7 @@ const actionAttributes = action =>
         :is="primary.action.type === 'link' ? 'a' : 'button'"
         v-if="primary.action.type"
         v-bind="actionAttributes(primary.action)"
-        class="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-n-brand px-4 py-2 text-sm font-medium !text-white"
+        class="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-n-brand px-4 py-2 text-center text-sm font-medium !text-white"
         data-test-id="plan-card-cta"
       >
         {{ primary.action.text }}
@@ -165,7 +165,7 @@ const actionAttributes = action =>
           v-for="(alternative, index) in alternatives"
           :key="index"
           v-bind="actionAttributes(alternative.action)"
-          class="flex items-center justify-between gap-2 px-3 py-3"
+          class="flex items-center justify-between gap-2 px-3 py-3 text-start"
           :class="index > 0 ? ROW_DIVIDER_CLASSES : ''"
           data-test-id="plan-card-alternative"
         >

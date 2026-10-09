@@ -1,21 +1,6 @@
 import { MESSAGE_TYPE } from 'widget/helpers/constants';
 import { findUndeliveredMessage } from './helpers';
 
-// TODO(mobile-chat): temporary diagnostic for the card-rendering investigation; inert
-// unless the widget is loaded with cw_debug=1. Remove with the AgentMessage.vue log.
-const logIngestDebug = (mutation, messages) => {
-  if (new URLSearchParams(window.location.search).get('cw_debug') !== '1') {
-    return;
-  }
-  const shape = message => ({
-    id: message.id,
-    contentType: message.content_type,
-    messageKeys: Object.keys(message),
-  });
-  // eslint-disable-next-line no-console
-  console.log(`[mobile-chat][cw_debug] ${mutation}`, messages.map(shape));
-};
-
 export const mutations = {
   clearConversations($state) {
     $state.conversations = {};
@@ -23,7 +8,6 @@ export const mutations = {
     $state.pendingLabels = [];
   },
   pushMessageToConversation($state, message) {
-    logIngestDebug('pushMessageToConversation', [message]);
     const { id, status, message_type: type } = message;
 
     const messagesInbox = $state.conversations;
@@ -77,7 +61,6 @@ export const mutations = {
   },
 
   setMessagesInConversation($state, payload) {
-    logIngestDebug('setMessagesInConversation', payload);
     if (!payload.length) {
       $state.uiFlags.allMessagesLoaded = true;
       return;

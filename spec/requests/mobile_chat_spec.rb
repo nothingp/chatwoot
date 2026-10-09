@@ -67,6 +67,16 @@ RSpec.describe 'Mobile chat handoff', type: :request do
     expect(query['locale']).to eq('zh_CN')
   end
 
+  it 'marks the redirect as a handoff so the embed skips the widget self-fetch path' do
+    session_id = MobileChat::SessionStore.create(contact_inbox: contact_inbox, inbox: inbox)
+
+    get '/mobile-chat', params: { session: session_id }
+
+    expect(response).to have_http_status(:found)
+    query = URI.decode_www_form(URI.parse(response.location).query).to_h
+    expect(query['cw_handoff']).to eq('1')
+  end
+
   it 'omits the locale parameter when the contact has none' do
     session_id = MobileChat::SessionStore.create(contact_inbox: contact_inbox, inbox: inbox)
 
