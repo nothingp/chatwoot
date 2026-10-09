@@ -729,6 +729,8 @@ deploy/upstream-comparison/deploy.sh                # 确认后部署
 
 （`installation_model_override` 已经在 `FeatureRouter` 里覆盖了这个逻辑，这里重复了。）
 
+⚠️ **但这不是纯粹的重复** —— `FeatureRouter` 那份**带 `self_hosted_paid?` 门槛**，而 `agentable.rb` 删掉的这份**没有**。所以非 paid 的自建实例若设了 `CAPTAIN_OPEN_AI_MODEL`，assistant 会从 installation 模型变成 `llm.yml` 的默认值。T6 的 reviewer 做过可达性分析：还需账号**未开** `captain_integration`，而老方法对开了 Captain 的账号已提前 return，所以生产路径上不可达；我们这台是 paid，完全不受影响。**记在这里是因为原文低估了它。**
+
 - [ ] **Step 4: 改 `config/llm.yml` 的 `default:`**
 
 | feature | 新 default |
