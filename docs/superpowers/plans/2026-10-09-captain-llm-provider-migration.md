@@ -68,8 +68,8 @@ bundle exec rspec spec/lib/llm/models_spec.rb spec/lib/llm/feature_router_spec.r
 **Interfaces:**
 - Consumes: 无
 - Produces:
-  - `Llm::Models.model_params(model_name) -> Hash`（键为 String，无配置时返回 `{}`）
-  - `Llm::Models.feature_config(feature_key)[:models][i]` 新增 `:params` 键
+  - `Llm::Models.model_params(model_name) -> Hash` —— **键为 Symbol**（`{enable_thinking: false}`），无配置时返回 `{}`
+  - ⚠️ **键必须是 Symbol**：调用方用 `**params` splat 传给 `RubyLLM.embed` / `chat.with_params`，它们内部按 `options[:dimensions]`（Symbol）取值。String 键会静默取不到 → `dimensions` 不生效 → 写入 `vector(1536)` 失败。这是 pre-flight 扫描裁定的（见 ledger）。
 
 - [ ] **Step 1: 写失败的测试**
 
@@ -85,14 +85,12 @@ bundle exec rspec spec/lib/llm/models_spec.rb spec/lib/llm/feature_router_spec.r
       expect(described_class.model_params('no-such-model')).to eq({})
     end
 
-    it 'returns the configured params for a model that declares them' do
-      expect(described_class.model_params('qwen3.8-flash')).to eq('enable_thinking' => false)
+    it 'returns the configured params with symbol keys' do
+      expect(described_class.model_params('qwen3.8-flash')).to eq(enable_thinking: false)
     end
 
-    it 'exposes params through feature_config' do
-      assistant = described_class.feature_config('assistant')[:models].find { |m| m[:id] == 'qwen3.8-flash' }
-
-      expect(assistant[:params]).to eq('enable_thinking' => false)
+    it 'returns embedding params with symbol keys' do
+      expect(described_class.model_params('qwen3.7-text-embedding')).to eq(dimensions: 1536)
     end
   end
 ```
@@ -109,18 +107,13 @@ Expected: FAIL —— `undefined method 'model_params' for Llm::Models`
 在 `lib/llm/models.rb` 的 `model_config` 之后插入：
 
 ```ruby
+    # 键必须 symbol 化 —— 调用方用 **params 传给 RubyLLM，它按 Symbol 取值。
     def model_params(model_name)
-      model_config(model_name)&.dig('params') || {}
+      model_config(model_name)&.dig('params')&.symbolize_keys || {}
     end
 ```
 
-并把 `feature_config` 里的 map 块改为（只加一行 `params:`）：
-
-```ruby
-            coming_soon: model['coming_soon'],
-            credit_multiplier: model['credit_multiplier'],
-            params: model['params'] || {}
-```
+**不要**改 `feature_config` —— 把 params 暴露给前端没有消费方（YAGNI），且会把这个内部细节带进 API 响应。
 
 - [ ] **Step 4: 语法与 lint 验证（本机能跑）**
 
