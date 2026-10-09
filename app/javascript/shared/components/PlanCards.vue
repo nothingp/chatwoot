@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import FluentIcon from 'shared/components/FluentIcon/Index.vue';
+import { IFrameHelper } from 'widget/helpers/utils';
 
 const props = defineProps({
   items: {
@@ -55,6 +56,27 @@ const primary = computed(() => cards.value[0]);
 // The alternatives are keyed by position, not by checkout uri: nothing in the contract makes two
 // cards' uris differ, and a repeated key is not a key.
 const alternatives = computed(() => cards.value.slice(1));
+
+// CardButton.vue owns this postback protocol -- the widget sends it and the host page opens the
+// checkout from the payload, because the sandboxed iframe cannot navigate there itself. The guard
+// is CardButton's too: outside an iframe, which is where the app's WebView runs, it sends nothing
+// and the app opens the link action instead.
+const sendPostback = payload => {
+  if (IFrameHelper.isIFrame()) {
+    IFrameHelper.sendMessage({ event: 'postback', data: { payload } });
+  }
+};
+
+// A website session's action is a postback, so the call to action and the alternative rows are
+// buttons there and anchors for the app. Only the element differs; both carry the same behaviour.
+const actionAttributes = action =>
+  action.type === 'link'
+    ? {
+        href: action.uri,
+        target: '_blank',
+        rel: 'noopener nofollow noreferrer',
+      }
+    : { onClick: () => sendPostback(action.payload) };
 </script>
 
 <template>
@@ -107,12 +129,12 @@ const alternatives = computed(() => cards.value.slice(1));
 
       <!-- `!text-white` is forced on purpose: `.chat-bubble > a` in the widget's _conversation.scss
            is a (0,1,1) selector and outranks a plain `text-white` utility (0,1,0), which paints the
-           label in the button's own blue. The arrow inherits the colour via `fill="currentColor"`. -->
-      <a
-        v-if="primary.action.uri"
-        :href="primary.action.uri"
-        target="_blank"
-        rel="noopener nofollow noreferrer"
+           label in the button's own blue. The arrow inherits the colour via `fill="currentColor"`.
+           A website session's postback turns the same pill into a button. -->
+      <component
+        :is="primary.action.type === 'link' ? 'a' : 'button'"
+        v-if="primary.action.type"
+        v-bind="actionAttributes(primary.action)"
         class="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-n-brand px-4 py-2 text-sm font-medium !text-white"
         data-test-id="plan-card-cta"
       >
@@ -122,7 +144,7 @@ const alternatives = computed(() => cards.value.slice(1));
           :size="ICON_SIZE"
           class="rtl:rotate-180"
         />
-      </a>
+      </component>
     </div>
 
     <div v-if="alternatives.length">
@@ -138,12 +160,11 @@ const alternatives = computed(() => cards.value.slice(1));
         class="bg-n-background dark:bg-n-solid-3 overflow-hidden"
         :class="BUBBLE_SHAPE_CLASSES"
       >
-        <a
+        <component
+          :is="alternative.action.type === 'link' ? 'a' : 'button'"
           v-for="(alternative, index) in alternatives"
           :key="index"
-          :href="alternative.action.uri"
-          target="_blank"
-          rel="noopener nofollow noreferrer"
+          v-bind="actionAttributes(alternative.action)"
           class="flex items-center justify-between gap-2 px-3 py-3"
           :class="index > 0 ? ROW_DIVIDER_CLASSES : ''"
           data-test-id="plan-card-alternative"
@@ -156,7 +177,7 @@ const alternatives = computed(() => cards.value.slice(1));
             :size="ICON_SIZE"
             class="shrink-0 text-n-slate-11 rtl:rotate-180"
           />
-        </a>
+        </component>
       </div>
     </div>
   </div>
