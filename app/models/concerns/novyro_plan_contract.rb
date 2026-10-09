@@ -1,4 +1,5 @@
 require 'json'
+require 'uri'
 
 # The plan cards the mobile app renders natively. This variant is its own contract: the app
 # reads badge and facts and builds the checkout URL from the action's query terms, so a card
@@ -23,7 +24,12 @@ module NovyroPlanContract
   NOVYRO_PLAN_ACTION_KEYS = [:type, :text, :uri].freeze
   NOVYRO_PLAN_POSTBACK_KEYS = [:type, :text, :payload].freeze
   NOVYRO_PLAN_POSTBACK_TYPE = 'checkout'.freeze
-  NOVYRO_PLAN_PAYLOAD_KEYS = %w[type url].freeze
+  # The url stays so the host page can always fall back to it; the two ids let it build its own
+  # destination instead. The session values a client declared when it opened the chat are echoed
+  # back alongside them. The app token is deliberately not among them: it is a credential, and the
+  # payload leaves the server.
+  NOVYRO_PLAN_PAYLOAD_REQUIRED_KEYS = %w[type url goods_id sku_id].freeze
+  NOVYRO_PLAN_PAYLOAD_SESSION_KEYS = %w[locale platform catalog_environment currency].freeze
   NOVYRO_PLAN_ACTION_PATH = '/app-actions/checkout'.freeze
   NOVYRO_PLAN_ACTION_QUERY_KEYS = %w[catalog_env goods_id sku_id].freeze
   NOVYRO_PLAN_CATALOG_ENVIRONMENTS = %w[dev test prod].freeze
@@ -33,16 +39,47 @@ module NovyroPlanContract
     fact_label: 40, fact_value: 120, action_text: 120, action_uri: 2048, action_payload: 2048
   }.freeze
 
-  # Chatwoot hands a postback payload to the host page as the string it is, so it has to be JSON
-  # carrying exactly the checkout type and the url. A payload that does not parse, or does not carry
-  # that shape, is nil here rather than an exception the writer has to rescue.
-  def self.postback_checkout_url(payload)
-    parsed = payload.is_a?(String) ? JSON.parse(payload) : {}
-    return unless parsed.is_a?(Hash) && parsed.keys.sort == NOVYRO_PLAN_PAYLOAD_KEYS
-    return unless parsed['type'] == NOVYRO_PLAN_POSTBACK_TYPE && parsed['url'].is_a?(String)
+  # The ids are positive integers the app and the checkout both index by, so anything else -- a
+  # zero, a sign, a float, a string that is not digits -- is a term the other side rejects.
+  def self.checkout_id?(value)
+    value.is_a?(String) && value.match?(/\A[0-9]+\z/) &&
+      value.to_i.between?(1, NOVYRO_PLAN_MAX_SAFE_ID)
+  end
 
-    parsed['url']
+  # Chatwoot hands a postback payload to the host page as the string it is. A payload that does not
+  # parse, or does not carry the shape the host page reads, is nil here rather than an exception
+  # the writer has to rescue.
+  def self.postback_checkout(payload)
+    parsed = payload.is_a?(String) ? JSON.parse(payload) : nil
+    return unless postback_payload?(parsed)
+
+    parsed
   rescue JSON::ParserError
     nil
+  end
+
+  def self.postback_payload?(parsed)
+    return false unless parsed.is_a?(Hash)
+    return false unless (parsed.keys - NOVYRO_PLAN_PAYLOAD_SESSION_KEYS).sort == NOVYRO_PLAN_PAYLOAD_REQUIRED_KEYS
+
+    checkout_payload?(parsed)
+  end
+
+  def self.checkout_payload?(parsed)
+    return false unless parsed['type'] == NOVYRO_PLAN_POSTBACK_TYPE && checkout_url?(parsed['url'])
+    return false unless checkout_id?(parsed['goods_id']) && checkout_id?(parsed['sku_id'])
+
+    parsed.values_at(*NOVYRO_PLAN_PAYLOAD_SESSION_KEYS).compact.all?(String)
+  end
+
+  # The destination the host page opens: an https page with a host. Anything else is a link the
+  # customer cannot complete a purchase with.
+  def self.checkout_url?(value)
+    return false unless value.is_a?(String)
+
+    uri = URI.parse(value)
+    uri.is_a?(URI::HTTPS) && uri.host.present? && uri.userinfo.nil? && uri.fragment.nil?
+  rescue URI::InvalidURIError
+    false
   end
 end

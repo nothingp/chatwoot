@@ -23,6 +23,8 @@ RSpec.describe ContentAttributeValidator do
     }
   end
   let(:checkout_url) { 'https://support.example.com/app-actions/checkout?goods_id=13&sku_id=13055&catalog_env=prod' }
+  # The store's checkout, which is what a postback carries. The app keeps the link above.
+  let(:web_checkout_url) { 'https://www.example.com/zh-CN/checkout?skuId=13055' }
   let(:items) { [card] }
   let(:message) do
     build(:message, account: account, inbox: inbox, conversation: conversation,
@@ -159,11 +161,11 @@ RSpec.describe ContentAttributeValidator do
   # The website embeds the widget in a sandboxed iframe, where a link cannot open the checkout, so
   # its action carries the same url as a postback payload the host page reads and opens.
   context 'with a postback action' do
-    let(:payload) { { type: 'checkout', url: checkout_url } }
+    let(:payload) { { type: 'checkout', url: web_checkout_url, goods_id: '13', sku_id: '13055' } }
     let(:postback) { { type: 'postback', text: 'View plan', payload: JSON.generate(payload) } }
     let(:postback_card) { card.merge(actions: [postback]) }
     # The url rides in JSON, so the payload bound is the uri bound minus this wrapper.
-    let(:payload_wrapper) { JSON.generate(type: 'checkout', url: '').length }
+    let(:payload_wrapper) { JSON.generate(type: 'checkout', url: '', goods_id: '', sku_id: '').length }
 
     # Every example here swaps the action alone, so the card wrapper is written once.
     def plan_grouped(action)
@@ -217,30 +219,49 @@ RSpec.describe ContentAttributeValidator do
       expect(message).not_to be_valid
     end
 
-    it 'rejects a payload whose url is not the checkout path' do
-      url = checkout_url.sub('/app-actions/checkout', '/checkout')
-      message.content_attributes = plan_grouped(postback.merge(payload: JSON.generate(payload.merge(url: url))))
+    it 'rejects a payload missing the sku id' do
+      message.content_attributes = plan_grouped(postback.merge(payload: JSON.generate(payload.except(:sku_id))))
 
       expect(message).not_to be_valid
     end
 
-    it 'rejects a payload whose url misses a query term' do
-      message.content_attributes = plan_grouped(postback.merge(payload: JSON.generate(payload.merge(url: checkout_url.sub('&catalog_env=prod', '')))))
+    it 'rejects a payload whose goods id is not a numeric string' do
+      message.content_attributes = plan_grouped(postback.merge(payload: JSON.generate(payload.merge(goods_id: 13))))
 
       expect(message).not_to be_valid
     end
 
-    # http stays legal -- checkout_uri? takes both schemes -- so this uses a scheme the app cannot
-    # hand on at all.
-    it 'rejects a payload whose url is on another scheme' do
-      message.content_attributes = plan_grouped(postback.merge(payload: JSON.generate(payload.merge(url: checkout_url.sub('https://', 'ftp://')))))
+    # The destination is an https page. Another scheme, or a url with no scheme at all, is a link
+    # the host page cannot open.
+    it 'rejects a payload whose url is not https' do
+      validities = ['ftp://www.example.com/checkout', 'www.example.com/checkout'].map do |url|
+        message.content_attributes = plan_grouped(postback.merge(payload: JSON.generate(payload.merge(url: url))))
+        message.valid?
+      end
+
+      expect(validities).to eq([false, false])
+    end
+
+    # The host page reads what the client already declared, so the session values ride along.
+    it 'accepts the session values the client declared' do
+      session = payload.merge(locale: 'zh_CN', platform: 'web', catalog_environment: 'prod', currency: 'USD')
+      message.content_attributes = plan_grouped(postback.merge(payload: JSON.generate(session)))
+
+      expect(message).to be_valid
+    end
+
+    it 'rejects a session value that is not a string' do
+      message.content_attributes = plan_grouped(postback.merge(payload: JSON.generate(payload.merge(currency: 840))))
 
       expect(message).not_to be_valid
     end
+
+    # The payload bound is exercised through the url, which is the one value long enough to run it.
+    let(:padded_url_prefix) { 'https://www.example.com/' }
+    let(:padded_url_length) { 2048 - payload_wrapper - padded_url_prefix.length }
 
     it 'accepts a payload of exactly 2048 characters' do
-      url = checkout_url.sub('support', "support#{'a' * (2048 - payload_wrapper - checkout_url.length)}")
-      padded = JSON.generate(payload.merge(url: url))
+      padded = JSON.generate(payload.merge(url: "#{padded_url_prefix}#{'a' * padded_url_length}"))
       message.content_attributes = plan_grouped(postback.merge(payload: padded))
 
       expect(padded.length).to eq(2048)
@@ -248,7 +269,7 @@ RSpec.describe ContentAttributeValidator do
     end
 
     it 'rejects a payload past 2048 characters' do
-      url = checkout_url.sub('support', "support#{'a' * (2048 - payload_wrapper - checkout_url.length + 1)}")
+      url = "#{padded_url_prefix}#{'a' * (padded_url_length + 1)}"
       message.content_attributes = plan_grouped(postback.merge(payload: JSON.generate(payload.merge(url: url))))
 
       expect(message).not_to be_valid

@@ -40,6 +40,12 @@ module MobileChat::CardCopy
   }.freeze
   # Legacy ISO codes the app never sends, but older clients did.
   LEGACY_LANGUAGE_ALIASES = { 'fil' => 'tl', 'iw' => 'he', 'in' => 'id', 'nb' => 'no', 'nn' => 'no' }.freeze
+  # The languages the store serves a prefixed path for, spelled the way its own SUPPORTED_LOCALES
+  # spells them. `en` is the unprefixed root, so it is listed but never yields a prefix.
+  WEB_LOCALES = %w[
+    en zh-CN zh-Hant ja ko es de fr ar ru uz ky hi id pt-BR it th tl ms vi tr es-MX bn fa
+    pl uk hr nl cs fi sk ro sv he el hu da fr-CA ca no pt-PT pt
+  ].freeze
 
   class << self
     # The dictionary is keyed by the app's own appLocale, and clients send the locale raw -- the
@@ -48,6 +54,17 @@ module MobileChat::CardCopy
     def copy_for(locale)
       dictionaries[canonical_locale(locale)] || dictionaries[ENGLISH] ||
         raise(CustomExceptions::MobileChat::NotConfigured, 'MOBILE_CHAT_CARD_COPY_EN')
+    end
+
+    # The store's paths spell a language with hyphens (zh-CN) while the app writes it with an
+    # underscore (zh_CN), so the same canonicalization the copy uses runs first. A language the
+    # store does not serve falls back to the unprefixed root: a path it does not have would be a
+    # 404 on a purchase surface.
+    def web_locale_prefix(locale)
+      code = canonical_locale(locale).tr('_', '-')
+      return '' unless WEB_LOCALES.include?(code) && code != ENGLISH
+
+      "/#{code}"
     end
 
     def sanitize_description(value, fallback)

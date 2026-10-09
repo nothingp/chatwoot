@@ -144,7 +144,8 @@ class ContentAttributeValidator < ActiveModel::Validator
   end
 
   # The website embeds the widget in a sandboxed iframe, where a link cannot open the checkout, so
-  # its action carries the same url as a postback payload the host page reads and opens.
+  # its action carries the checkout ids as a postback payload the host page turns into a url -- the
+  # host page knows the customer's language, so it builds the destination itself.
   def validate_novyro_plan_postback_action!(record, action)
     record.errors.add(:content_attributes, 'contains invalid keys for Novyro plan actions') unless exact_hash_keys?(action, NOVYRO_PLAN_POSTBACK_KEYS)
     validate_bounded_text!(record, action, :text, NOVYRO_PLAN_TEXT_LIMITS[:action_text])
@@ -152,8 +153,8 @@ class ContentAttributeValidator < ActiveModel::Validator
     payload = attribute_value(action, :payload)
     return unless validate_bounded_text!(record, action, :payload, NOVYRO_PLAN_TEXT_LIMITS[:action_payload])
 
-    url = NovyroPlanContract.postback_checkout_url(payload)
-    record.errors.add(:content_attributes, 'Novyro plan postback payload is invalid.') unless url && checkout_uri?(url)
+    checkout = NovyroPlanContract.postback_checkout(payload)
+    record.errors.add(:content_attributes, 'Novyro plan postback payload is invalid.') unless checkout
   end
 
   # The app opens its own checkout from exactly these three terms; a fourth term or a missing one
@@ -179,13 +180,8 @@ class ContentAttributeValidator < ActiveModel::Validator
                         pairs.map(&:first).sort == NOVYRO_PLAN_ACTION_QUERY_KEYS
 
     terms = pairs.to_h
-    checkout_id?(terms['goods_id']) && checkout_id?(terms['sku_id']) &&
+    NovyroPlanContract.checkout_id?(terms['goods_id']) && NovyroPlanContract.checkout_id?(terms['sku_id']) &&
       NOVYRO_PLAN_CATALOG_ENVIRONMENTS.include?(terms['catalog_env'])
-  end
-
-  def checkout_id?(value)
-    value.is_a?(String) && value.match?(/\A[0-9]+\z/) &&
-      value.to_i.between?(1, NOVYRO_PLAN_MAX_SAFE_ID)
   end
 
   # Answers whether the value passed, so a caller can stop before it reads a string that is larger

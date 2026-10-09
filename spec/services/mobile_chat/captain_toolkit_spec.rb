@@ -18,6 +18,7 @@ RSpec.describe MobileChat::CaptainToolkit do
     create(:installation_config, name: 'NOVYRO_API_KEY', value: 'service-key')
     create(:installation_config, name: 'NOVYRO_SITE_ID', value: '10000')
     create(:installation_config, name: 'NOVYRO_CATALOG_ENVIRONMENT', value: 'test')
+    create(:installation_config, name: 'NOVYRO_WEB_BASE_URL', value: 'https://www.example.com')
 
     allow(Resolv).to receive(:getaddresses).and_call_original
     allow(Resolv).to receive(:getaddresses).with('api.example.com').and_return(['93.184.216.34'])
@@ -359,7 +360,8 @@ RSpec.describe MobileChat::CaptainToolkit do
     end
 
     # The website embeds the widget in a sandboxed iframe, where a link cannot open the checkout at
-    # all, so its url goes out as a postback payload for the host page to open instead.
+    # all, so the store's url goes out as a postback payload for the host page to open instead --
+    # alongside the ids and the session values, which the host page can read instead of guessing.
     it 'builds a postback action for the website' do
       web_contact = create(:contact, account: account, identifier: 'member_web',
                                      custom_attributes: { 'app_token' => 'member-token', 'locale' => 'zh_CN',
@@ -372,8 +374,34 @@ RSpec.describe MobileChat::CaptainToolkit do
       expect(action[:text]).to eq('日本 7日 10GB 总量套餐')
       expect(JSON.parse(action[:payload])).to eq(
         'type' => 'checkout',
-        'url' => 'https://app.example.com/app-actions/checkout?goods_id=13&sku_id=13055&catalog_env=prod'
+        'url' => 'https://www.example.com/zh-CN/checkout?skuId=13055',
+        'goods_id' => '13',
+        'sku_id' => '13055',
+        'locale' => 'zh_CN',
+        'platform' => 'web',
+        'catalog_environment' => 'prod',
+        'currency' => 'USD'
       )
+    end
+
+    it 'leaves the app token out of the postback payload' do
+      web_contact = create(:contact, account: account, identifier: 'member_web',
+                                     custom_attributes: { 'app_token' => 'secret-token', 'platform' => 'web' })
+      action = described_class.new(create(:conversation, account: account, contact: web_contact))
+                              .purchase_actions(params)[:cards].first[:actions].first
+
+      expect(JSON.parse(action[:payload])).not_to have_key('app_token')
+    end
+
+    # The store only serves a prefixed path for the languages it lists; anything else has to fall
+    # back to the unprefixed root, where a path it does not have would be a 404.
+    it 'leaves the language prefix off for a language the store does not serve' do
+      web_contact = create(:contact, account: account, identifier: 'member_web',
+                                     custom_attributes: { 'platform' => 'web', 'locale' => 'xx_YY' })
+      action = described_class.new(create(:conversation, account: account, contact: web_contact))
+                              .purchase_actions(params)[:cards].first[:actions].first
+
+      expect(JSON.parse(action[:payload])['url']).to eq('https://www.example.com/checkout?skuId=13055')
     end
 
     it 'keeps the link action for the app' do
