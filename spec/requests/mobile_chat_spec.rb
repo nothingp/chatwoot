@@ -77,6 +77,17 @@ RSpec.describe 'Mobile chat handoff', type: :request do
     expect(query).not_to have_key('locale')
   end
 
+  it 'still redirects when the session outlived its contact' do
+    session_id = MobileChat::SessionStore.create(contact_inbox: contact_inbox, inbox: inbox)
+    contact.destroy!
+
+    get '/mobile-chat', params: { session: session_id }
+
+    expect(response).to have_http_status(:found)
+    query = URI.decode_www_form(URI.parse(response.location).query).to_h
+    expect(query).not_to have_key('locale')
+  end
+
   it 'renders 410 for an unknown session' do
     get '/mobile-chat', params: { session: SecureRandom.uuid }
 
