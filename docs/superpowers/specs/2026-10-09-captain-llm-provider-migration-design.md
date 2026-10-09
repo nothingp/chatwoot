@@ -259,17 +259,25 @@ models:
 
 | 位置 | 改动 |
 |---|---|
-| `lib/captain/base_task_service.rb#build_chat` | `chat.with_params(**Llm::Models.model_params(model))` |
+| `lib/captain/base_task_service.rb#build_chat` | `chat.with_provider_options(Llm::Models.model_params(model)) if params.any?` |
 | `enterprise/app/models/concerns/agentable.rb#agent` | `Agents::Agent.new(..., params: Llm::Models.model_params(model))` |
 | `enterprise/app/services/captain/llm/embedding_service.rb#get_embedding` | `RubyLLM.embed(content, model: model, **Llm::Models.model_params(model))` |
 
-（RubyLLM 的 `embed` 原生支持 `dimensions:` 关键字参数。）
+（RubyLLM 的 `embed` 原生支持 `dimensions:` 关键字参数 —— `embedding.rb:105` 的签名是 `dimensions: nil`，**真关键字**，所以 `model_params` 返回 Symbol 键是硬要求。）
 
-⚠️ **空 hash 要短路**：在 §11 的第 ① 段（endpoint 仍是 OpenAI）里，`model_params('gpt-4.1')` 返回 `{}`。`chat.with_params(**{})` 等价于 `chat.with_params()` —— 是否接受无参调用未经验证。写成：
+⚠️ **API 名称：是 `with_provider_options`，不是 `with_params`。**
+
+`RubyLLM::Chat#with_params` 是 **1.4.0** 的 API，**在 2.0.0 已不存在**（实测：解包 `ruby_llm-2.0.0.gem` 后 `grep -rn "with_params" lib/` 零命中）。2.0 的对应物是 `Chat#with_provider_options`（`chat.rb:618`，实现为 `@provider_options = provider_options.to_h`），它把选项原样并入请求体。
+
+决定性证据是 ruby_llm **自己的 agent** 也这么做：`lib/ruby_llm/agent.rb:711` 是 `chat.with_provider_options(**value) if value && !value.empty?` —— 即 `Agents::Agent.new(params:)` 最终就是经这个方法落到 chat 上的。
+
+这个错误只会在阶段②暴露：阶段①里 `model_params` 对所有 `gpt-*` 返回 `{}`，`if params.any?` 短路，`NoMethodError` 不会触发；`CAPTAIN_OPEN_AI_MODEL` 一指向 qwen，第一次调用就炸。**是 Task 5 的实现者在动手前核对了固定版本 gem 才拦住的。**
+
+⚠️ **空 hash 要短路**：在 §11 的第 ① 段（endpoint 仍是 OpenAI）里，`model_params('gpt-4.1')` 返回 `{}`。而 `with_provider_options({})` 会把 provider options 设成空 hash（`@provider_options = provider_options.to_h`），不是无操作。写成：
 
 ```ruby
 params = Llm::Models.model_params(model)
-chat.with_params(**params) if params.any?
+chat.with_provider_options(params) if params.any?
 ```
 
 `Agents::Agent.new(..., params: {})` 与 `RubyLLM.embed(..., **{})` 同理，用 `if params.any?` 或直接传空 hash（后者需实测）。

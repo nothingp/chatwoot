@@ -69,7 +69,7 @@ bundle exec rspec spec/lib/llm/models_spec.rb spec/lib/llm/feature_router_spec.r
 - Consumes: 无
 - Produces:
   - `Llm::Models.model_params(model_name) -> Hash` —— **键为 Symbol**（`{enable_thinking: false}`），无配置时返回 `{}`
-  - ⚠️ **键必须是 Symbol**：调用方用 `**params` splat 传给 `RubyLLM.embed` / `chat.with_params`，它们内部按 `options[:dimensions]`（Symbol）取值。String 键会静默取不到 → `dimensions` 不生效 → 写入 `vector(1536)` 失败。这是 pre-flight 扫描裁定的（见 ledger）。
+  - ⚠️ **键必须是 Symbol**：调用方把它 splat 给 `RubyLLM.embed`（`dimensions:` 是真关键字参数）和 `chat.with_provider_options`。String 键会静默取不到 → `dimensions` 不生效 → 写入 `vector(1536)` 失败。这是 pre-flight 扫描裁定的（见 ledger）。
 
 - [ ] **Step 1: 写失败的测试**
 
@@ -497,7 +497,7 @@ git commit -m "fix(llm): send the system role so OpenAI-compatible providers acc
 - Consumes: `Llm::Models.model_params(model_name) -> Hash`（Task 1）
 - Produces: 无新接口
 
-⚠️ **空 hash 必须短路**：阶段①里 OpenAI 模型的 `model_params` 返回 `{}`。`chat.with_params(**{})` 等价于无参调用，行为未验证。三处都要用 `if params.any?` 保护。
+⚠️ **空 hash 必须短路**：阶段①里 OpenAI 模型的 `model_params` 返回 `{}`。`chat.with_provider_options({})` 会把 provider options 清空成空 hash，不是无操作。三处都要用 `if params.any?` 保护。
 
 - [ ] **Step 1: 改 `lib/captain/base_task_service.rb`**
 
@@ -521,7 +521,7 @@ git commit -m "fix(llm): send the system role so OpenAI-compatible providers acc
     chat.with_schema(schema) if schema
 
     provider_params = Llm::Models.model_params(model)
-    chat.with_params(**provider_params) if provider_params.any?
+    chat.with_provider_options(provider_params) if provider_params.any?
 ```
 
 - [ ] **Step 2: 改 `enterprise/app/models/concerns/agentable.rb#agent`**
@@ -598,26 +598,26 @@ git commit -m "fix(llm): send the system role so OpenAI-compatible providers acc
   describe 'provider params passthrough' do
     it 'passes enable_thinking to the chat when the model declares it' do
       chat = instance_double(RubyLLM::Chat, with_instructions: nil, with_schema: nil)
-      allow(chat).to receive(:with_params).with(enable_thinking: false)
+      allow(chat).to receive(:with_provider_options).with(enable_thinking: false)
       context = instance_double(RubyLLM::Context, chat: chat)
       service = described_class.new(account: account)
 
       service.send(:build_chat, context, model: 'qwen3.8-flash',
                                            messages: [{ role: 'system', content: 'x' }])
 
-      expect(chat).to have_received(:with_params).with(enable_thinking: false)
+      expect(chat).to have_received(:with_provider_options).with(enable_thinking: false)
     end
 
-    it 'does not call with_params when the model declares none' do
+    it 'does not call with_provider_options when the model declares none' do
       chat = instance_double(RubyLLM::Chat, with_instructions: nil, with_schema: nil)
-      allow(chat).to receive(:with_params)
+      allow(chat).to receive(:with_provider_options)
       context = instance_double(RubyLLM::Context, chat: chat)
       service = described_class.new(account: account)
 
       service.send(:build_chat, context, model: 'gpt-4.1',
                                            messages: [{ role: 'system', content: 'x' }])
 
-      expect(chat).not_to have_received(:with_params)
+      expect(chat).not_to have_received(:with_provider_options)
     end
   end
 ```
