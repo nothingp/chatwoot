@@ -101,6 +101,18 @@ RSpec.describe Llm::BaseAiService do
       expect(llm_chat).to have_received(:with_provider_options).with(enable_thinking: false)
     end
 
+    it 'merges the model params with the provider options the caller passes' do
+      llm_chat = instance_double(RubyLLM::Chat)
+      allow(RubyLLM).to receive(:chat).with(model: 'qwen3.8-flash').and_return(llm_chat)
+      allow(llm_chat).to receive(:with_temperature).and_return(llm_chat)
+      allow(llm_chat).to receive(:with_provider_options).and_return(llm_chat)
+
+      service.chat(model: 'qwen3.8-flash', provider_options: { response_format: { type: 'json_object' } })
+
+      expect(llm_chat).to have_received(:with_provider_options)
+        .with(enable_thinking: false, response_format: { type: 'json_object' })
+    end
+
     it 'does not set provider options when the model declares none' do
       llm_chat = instance_double(RubyLLM::Chat)
       allow(RubyLLM).to receive(:chat).with(model: 'gpt-5.2').and_return(llm_chat)
