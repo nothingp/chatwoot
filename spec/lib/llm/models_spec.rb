@@ -65,4 +65,22 @@ RSpec.describe Llm::Models do
       )
     end
   end
+
+  describe '.model_params' do
+    it 'returns an empty hash for a model without params' do
+      expect(described_class.model_params('gpt-4.1')).to eq({})
+    end
+
+    it 'returns an empty hash for an unknown model' do
+      expect(described_class.model_params('no-such-model')).to eq({})
+    end
+
+    it 'returns the configured params with symbol keys' do
+      expect(described_class.model_params('qwen3.8-flash')).to eq(enable_thinking: false)
+    end
+
+    it 'returns embedding params with symbol keys' do
+      expect(described_class.model_params('qwen3.7-text-embedding')).to eq(dimensions: 1536)
+    end
+  end
 end
