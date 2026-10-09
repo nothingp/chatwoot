@@ -77,9 +77,17 @@ export default {
       this.$store.dispatch('message/update', messageResponse);
     },
     onOptionSelect(selectedOption) {
+      // 标记「已作答」，让 ChatOptions 收起按钮（沿用上游 input_select 的语义）。
       this.onResponse({
         submittedValues: [selectedOption],
         messageId: this.messageId,
+      });
+      // 上游的 input_select 只把选择写进 submitted_values，不产生 incoming 消息 ——
+      // 而 Captain 及所有自动化都只对 incoming 消息响应（见
+      // Enterprise::Message#captain_response_triggering?）。所以要真的把选择发成
+      // 一条客户消息，否则点菜单是个死胡同。
+      this.$store.dispatch('conversation/sendMessage', {
+        content: selectedOption.title || selectedOption.value,
       });
     },
     onFormSubmit(formValues) {

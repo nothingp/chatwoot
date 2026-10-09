@@ -20,7 +20,14 @@ const router = createRouter({
       component: ViewWithHeader,
       children: [
         {
+          // 默认直接落到会话页。首页那张「在线状态 / Start Conversation」卡片对 AI 全接管的
+          // 场景只是多一层点击，客户首访看到空白会话也比多点一次更顺。
+          // 首页仍保留为 /home —— App.vue 在组件被关闭（未读/活动视图）时会回到它。
           path: '',
+          redirect: { name: 'messages' },
+        },
+        {
+          path: '/home',
           name: 'home',
           component: () => import('./views/Home.vue'),
         },
