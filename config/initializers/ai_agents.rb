@@ -15,6 +15,11 @@ Rails.application.config.after_initialize do
     end
     config.default_model = model
     config.openai_protocol = :chat_completions
+    # The Agents SDK carries its own configuration and does not go through Llm::Config,
+    # so this must be set here too: ruby_llm sends the 'developer' role under the
+    # chat_completions protocol, which DashScope rejects. Llm::Config sets the same flag
+    # for the paths that do go through it; neither surface covers the other.
+    config.openai_use_system_role = true
     config.model_registry_file = Rails.root.join('config/llm_models.json').to_s
     config.debug = false
   end
