@@ -111,3 +111,6 @@ Procfile.worktree
 
 # SDD scratch (ledger, briefs, review packages) — never commit
 .superpowers/
+
+# Playwright MCP session cache (console logs, snapshots) — never commit
+.playwright-mcp/
