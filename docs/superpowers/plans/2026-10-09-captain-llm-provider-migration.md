@@ -163,7 +163,6 @@ CHAT_FEATURES = %w[
   conversation_faq_generation conversation_faq_matching
   help_center_article_generation onboarding_content_generation help_center_query_translation
 ].freeze
-PINNED = %w[pdf_faq_generation audio_transcription].freeze
 
 errors = []
 
@@ -186,11 +185,13 @@ errors << "pdf_faq_generation: 白名单缺 qwen-long" unless
 errors << "assistant default 被改了" unless cfg['features']['assistant']['default'] == 'gpt-4.1'
 errors << "editor default 被改了" unless cfg['features']['editor']['default'] == 'gpt-4.1-mini'
 
-# params 必须挂在模型上，不是 feature 上
+# params 必须挂在模型上，不是 feature 上。
+# 用 cfg.dig(...) 而不是 cfg['models'][id].dig(...) —— 后者在模型缺失时抛 NoMethodError，
+# 会让这个脚本在打印缺项清单之前就崩掉（T2 实现时踩到过）。
 errors << "qwen3.8-flash 缺 enable_thinking params" unless
-  cfg['models']['qwen3.8-flash'].dig('params', 'enable_thinking') == false
+  cfg.dig('models', 'qwen3.8-flash', 'params', 'enable_thinking') == false
 errors << "qwen3.7-text-embedding 缺 dimensions params" unless
-  cfg['models']['qwen3.7-text-embedding'].dig('params', 'dimensions') == 1536
+  cfg.dig('models', 'qwen3.7-text-embedding', 'params', 'dimensions') == 1536
 
 if errors.empty?
   puts 'PASS: registry 与白名单一致，default 未被改动'
