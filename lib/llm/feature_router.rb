@@ -2,8 +2,9 @@ module Llm::FeatureRouter
   class UnknownFeatureError < StandardError; end
 
   CAPTAIN_V2_ASSISTANT_MODEL = 'gpt-5.2'.freeze
-  # pdf_faq_generation 必须用支持 fileid:// 的模型（qwen-long），audio_transcription 已停用。
-  # 两者都不能跟随 installation 级的 chat 模型 —— 详见 docs/superpowers/specs/2026-10-09-captain-llm-provider-migration-design.md §5.1
+  # pdf_faq_generation needs a model that honours DashScope's fileid:// references (qwen-long) and
+  # audio_transcription is disabled, so neither may follow the installation-level chat model.
+  # See the design doc §5.1: docs/superpowers/specs/2026-10-09-captain-llm-provider-migration-design.md
   PINNED_MODEL_FEATURES = %w[pdf_faq_generation audio_transcription].freeze
 
   class << self

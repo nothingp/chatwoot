@@ -164,7 +164,9 @@ RSpec.describe Llm::FeatureRouter do
     it 'does not apply the installation model to pinned features' do
       resolved = described_class.resolve(feature: 'pdf_faq_generation', account: account)
 
-      expect(resolved).to include(model: 'gpt-4.1-mini', source: :default)
+      # Assert it falls through to the feature's own default rather than pinning a model name:
+      # T6 changes pdf_faq_generation's default to qwen-long.
+      expect(resolved).to include(model: Llm::Models.default_model_for('pdf_faq_generation'), source: :default)
     end
 
     it 'pins exactly the features that cannot follow the global chat model' do
