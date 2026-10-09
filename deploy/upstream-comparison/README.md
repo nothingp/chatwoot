@@ -111,24 +111,46 @@ schedule.yml  internal_check_new_versions_job   cron 0 0 * * *
 **为什么源在 `/opt` 而不是仓库里**：compose 只把工作树当构建上下文交给服务器 daemon，
 构建完就丢弃；运行期的 `/app/config/*` 来自镜像。所以挂载源必须是服务器上的常驻文件。
 
+⚠️ **两个文件必须在第一次 `up -d`（或任何重建）之前就存在。** 缺失时 Docker 不报错，
+而是**在挂载点把它建成一个目录**（实测 `drwxr-xr-x root root`），容器照常启动，
+直到读配置才以一个莫名其妙的错误倒下。先按下面第一段把 `/opt/…/config/` 准备好。
+
+这一节的命令有的跑在服务器上、有的跑在笔记本（仓库）上 —— **每段前面标了在哪执行**。
+
+### 准备 / 重新从镜像抽取 `/opt` 下的那两份
+
+**在服务器上执行**（镜像只存在于服务器的 image store 里）：
+
 ```bash
+# 目录必须先存在且属当前用户；否则 docker run 里的 cp 会 EACCES
+#（缺目录时 daemon 会把它建成 root:root，写不进去）。
+mkdir -p /opt/chatwoot-upstream/config
+sudo -n chown ubuntu:ubuntu /opt/chatwoot-upstream/config
+
 # 从当前运行的镜像里抽出来（不要从仓库拷 —— 见下面的漂移警告）。
-# -u "$(id -u):$(id -g)" 让抽出来的文件属 ubuntu，否则是 root 的，编辑时还得 sudo。
+# -u "$(id -u):$(id -g)" 让抽出来的文件属当前用户（默认会属 root，编辑时还得 sudo）。
 sudo -n docker run --rm -u "$(id -u):$(id -g)" \
   -v /opt/chatwoot-upstream/config:/out --entrypoint sh \
   "$(sudo -n docker inspect -f '{{.Config.Image}}' chatwoot-upstream-rails-1)" \
   -c 'cp /app/config/llm.yml /app/config/llm_models.json /out/'
 ```
 
-**改完记得重启**：单文件 bind mount 挂的是**容器启动时解析到的那个 inode**。
-原地追加（`>>`）容器立刻能看到；但用编辑器、`sed -i`、`mv` 这类**换 inode** 的写法，
-容器在重启前仍读旧文件。所以改完统一：
+⚠️ **这段会覆盖宿主机上现有的 `llm.yml` / `llm_models.json`。** 若这两份是你在服务器上
+直接调过的（比如换过模型），一跑就没了 —— 要么先备份，要么先把它 scp 回仓库。
+
+### 改完记得重启
+
+**在服务器上执行**。单文件 bind mount 挂的是**容器启动时解析到的那个 inode**：
+原地追加（`>>`）容器立刻能看到，但用编辑器、`sed -i`、`mv` 这类**换 inode** 的写法，
+容器在重启前仍读旧文件。所以改完统一重启：
 
 ```bash
 cd /opt/chatwoot-upstream && sudo -n docker compose restart rails sidekiq
 ```
 
 （`restart` 会按路径重新解析，换 inode 的编辑也能生效；不必 `up -d` 重建。）
+
+### 漂移
 
 ⚠️ **挂载之后线上跑的是宿主机那份，仓库里那份被完全遮住 —— 两边会互相漂移。**
 
@@ -138,16 +160,23 @@ cd /opt/chatwoot-upstream && sudo -n docker compose restart rails sidekiq
 - **改了仓库里的 `config/llm.yml` 不会自动生效**：mount 把它整个遮住了，
   必须同步到宿主机那份再重启，否则改了等于没改。
 
-```bash
-# 对比宿主机那份与镜像里那份（镜像 tag 换成 deploy.sh --status 查到的）
-sudo -n docker run --rm --entrypoint md5sum chatwoot-upstream:917085b05b-dirty \
-  /app/config/llm.yml /app/config/llm_models.json
-ssh ubuntu@32.236.75.213 'md5sum /opt/chatwoot-upstream/config/llm*'
+查两边是否一致 —— **在服务器上执行**（tag 从运行中的容器取，不写死）：
 
-# 仓库那份 → 宿主机那份
-scp config/llm.yml config/llm_models.json ubuntu@32.236.75.213:/opt/chatwoot-upstream/config/
-# 然后重启：sudo -n docker compose restart rails sidekiq
+```bash
+IMG=$(sudo -n docker inspect -f '{{.Config.Image}}' chatwoot-upstream-rails-1)
+echo "镜像：$IMG"
+sudo -n docker run --rm --entrypoint md5sum "$IMG" /app/config/llm.yml /app/config/llm_models.json
+echo "宿主机："; md5sum /opt/chatwoot-upstream/config/llm*
 ```
+
+把仓库那份推上服务器 —— **在笔记本上、仓库根目录执行**（仓库不在服务器上）：
+
+```bash
+scp config/llm.yml config/llm_models.json ubuntu@32.236.75.213:/opt/chatwoot-upstream/config/
+```
+
+推完同样会覆盖宿主机那份（同上，先确认没丢你在服务器上做的改动），
+再**回到服务器上**重启才生效：`sudo -n docker compose restart rails sidekiq`。
 
 ---
 
