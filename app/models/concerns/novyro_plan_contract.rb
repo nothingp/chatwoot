@@ -28,6 +28,9 @@ module NovyroPlanContract
   # destination instead. The session values a client declared when it opened the chat are echoed
   # back alongside them. The app token is deliberately not among them: it is a credential, and the
   # payload leaves the server.
+  #
+  # Both lists are compared sorted -- the grouping here is for the reader, and a comparison against
+  # the order written down would reject every real payload.
   NOVYRO_PLAN_PAYLOAD_REQUIRED_KEYS = %w[type url goods_id sku_id].freeze
   NOVYRO_PLAN_PAYLOAD_SESSION_KEYS = %w[locale platform catalog_environment currency].freeze
   NOVYRO_PLAN_ACTION_PATH = '/app-actions/checkout'.freeze
@@ -60,7 +63,7 @@ module NovyroPlanContract
 
   def self.postback_payload?(parsed)
     return false unless parsed.is_a?(Hash)
-    return false unless (parsed.keys - NOVYRO_PLAN_PAYLOAD_SESSION_KEYS).sort == NOVYRO_PLAN_PAYLOAD_REQUIRED_KEYS
+    return false unless (parsed.keys - NOVYRO_PLAN_PAYLOAD_SESSION_KEYS).sort == NOVYRO_PLAN_PAYLOAD_REQUIRED_KEYS.sort
 
     checkout_payload?(parsed)
   end
