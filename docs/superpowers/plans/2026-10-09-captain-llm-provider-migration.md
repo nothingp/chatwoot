@@ -432,18 +432,17 @@ Expected: PASS（含原有全部用例）
 
 护栏只是"大声失败"；Super Admin 的下拉此刻仍列着 5 个 OpenAI 模型，等于 UI 主动邀请那个硬失败。把 `config/llm.yml` 里 `pdf_faq_generation` 的 `models:` 改成只剩 `qwen-long`。
 
-顺带把该任务里那条既有用例按新现实重定向（护栏现在对这个模型就是会抛）：
+顺带修那条既有用例。⚠️ **Step 4b 与"改成断言抛错"是互斥的** —— 白名单一收窄成 `[qwen-long]`，router 就再也不会为该 feature 解析出 `gpt-5.2`（覆盖值过不了 `valid_model_for?`，会被丢掉），护栏因此**永远不会为它触发**，那条 "expect raise" 不可能成立。正确的改法是**断言覆盖被忽略**：
 
 ```ruby
-    it 'uses the model the router resolves for the feature' do
+    it 'ignores an account override the feature no longer allows' do
       document.account.update!(captain_models: { 'pdf_faq_generation' => 'gpt-5.2' })
 
-      expect { described_class.new(document) }
-        .to raise_error(CustomExceptions::Pdf::FaqGenerationError, /gpt-5\.2/)
+      expect(described_class.new(document).model).to eq('qwen-long')
     end
 ```
 
-保留它而不是删掉：它是**唯一**在 service 层面证明"模型来自 router 而非硬编码"的用例，而匹配模型名把这个破坏变成了对路由的正向断言。
+这样仍然保住它的价值 —— 它是**唯一**在 service 层面证明"模型来自 router 而非硬编码"的用例，而现在证明的是 router 的**白名单校验**在 service 层面确实生效。而"抛错并指名模型"的断言属于护栏那条 stub 用例（`%r{fileid://.*<model>}`），两者分工不要混。
 
 - [ ] **Step 5: 本机验证**
 
@@ -964,7 +963,7 @@ git commit -m "refactor(captain): drop the hardcoded assistant model and route f
     end
 ```
 
-`pdf_processing_service_spec.rb` 里的 `purpose: 'assistants'` 断言改为 `'file-extract'`。
+`pdf_processing_service_spec.rb` **没有** `purpose: 'assistants'` 断言可改（上传的 double 是裸 `double`、没有 `.with`）—— 改为**新增**一条，用 `.with(parameters: hash_including(purpose: 'file-extract'))` 断言真正发出去的形状。
 
 - [ ] **Step 5: 本机验证**
 
