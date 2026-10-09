@@ -255,6 +255,13 @@ models:
 
 同时 `models:` 段与各 feature 的 `models:` 白名单**同时保留两套 provider 的 id**，使切回 OpenAI 不需要改文件。
 
+⚠️ **给未来加模型的人：`params:` 在两条路径上的语义不同。**
+
+- **chat 路径**（`with_provider_options`）：`params` 被**原样并入请求体**，所以任何 provider 词汇的字段都行 —— 这正是 `enable_thinking: false` 能工作的原因。
+- **embedding 路径**（`RubyLLM.embed(content, model:, **params)`）：`params` 是 **splat 进真关键字参数**，而 `RubyLLM.embed` 的签名里只有 `dimensions:`（`embedding.rb:105`）。**给 embedding 模型的 `params:` 里写任何别的键，都会 `ArgumentError` 而不是被转发。**
+
+现在只有 `qwen3.7-text-embedding` 声明了 `dimensions`，所以没问题。但如果你要换一个需要 provider 词汇参数（而非 `dimensions:`）的 embedding 模型，得先把 `EmbeddingService` 改成走 `with_provider_options` 风格，不能只加配置。
+
 ### 7.3 代码读取并应用参数
 
 | 位置 | 改动 |
