@@ -26,7 +26,8 @@ module Concerns::Agentable
         conversation: state[:conversation] || {},
         contact: config['feature_contact_attributes'].present? ? state[:contact] : nil,
         campaign: state[:campaign] || {},
-        message_length_limit: state[:message_length_limit]
+        message_length_limit: state[:message_length_limit],
+        language: reply_language(state, enhanced_context[:language])
       )
     end
 
@@ -46,6 +47,17 @@ module Concerns::Agentable
     return context unless runtime_configuration
 
     runtime_configuration.prompt_context_for(self, context)
+  end
+
+  # The client declares the language its copy should be in when it opens the session
+  # (MobileChat::ContactCredentials records it as `locale` on the contact), so the reply follows
+  # the customer rather than the account. Without it, prompt_context's account-level language
+  # stands as the fallback.
+  def reply_language(state, fallback)
+    locale = state.dig(:contact, :custom_attributes, 'locale').presence
+    return fallback if locale.blank?
+
+    ISO_639.find(locale.split('_').first)&.english_name&.downcase || locale
   end
 
   def agent_name
