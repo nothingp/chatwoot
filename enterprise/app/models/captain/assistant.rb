@@ -230,7 +230,10 @@ class Captain::Assistant < ApplicationRecord
     }
   end
 
+  # A static file rather than an uploaded attachment: ActiveStorage serves an attachment as a
+  # signed, expiring URL that is private and cannot be cached, so every widget load paid a redirect
+  # plus a full-size fetch. This one rides the asset path's year-long cache instead.
   def default_avatar_url
-    "#{ENV.fetch('FRONTEND_URL', nil)}/assets/images/dashboard/captain/logo.svg"
+    "#{ENV.fetch('FRONTEND_URL', nil)}/assets/images/dashboard/captain/ava-chen.png"
   end
 end
