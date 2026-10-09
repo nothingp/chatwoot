@@ -58,6 +58,11 @@ describe('UnreadMessage', () => {
 
     expect(wrapper.findComponent(PlanCards).props('items')).toEqual([plan]);
     expect(wrapper.find('.message-content').exists()).toBe(false);
+    // The card's own bubble is nested, never the direct child the unread-bubble styles target.
+    expect(wrapper.find('.chat-bubble-wrap > .chat-bubble').exists()).toBe(
+      false
+    );
+    expect(wrapper.find('.chat-bubble-wrap .chat-bubble').exists()).toBe(true);
   });
 
   it('renders the plan cards when content_type is missing but the variant is ours', () => {
@@ -83,6 +88,9 @@ describe('UnreadMessage', () => {
     const wrapper = mountUnread({ message: 'Hello' });
 
     expect(wrapper.find('.message-content').exists()).toBe(true);
+    expect(wrapper.find('.chat-bubble-wrap > .chat-bubble').exists()).toBe(
+      true
+    );
     expect(wrapper.findComponent(PlanCards).exists()).toBe(false);
     expect(wrapper.findComponent(ChatCard).exists()).toBe(false);
   });
