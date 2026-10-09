@@ -29,11 +29,11 @@ RSpec.describe Captain::ConversationCompletionService do
         allow(mock_chat).to receive(:ask).and_return(mock_response)
       end
 
-      it 'uses the internal GPT-4.1 route on Chatwoot Cloud' do
+      it 'uses the conversation completion feature default on Chatwoot Cloud' do
         allow(ChatwootApp).to receive(:self_hosted_paid?).and_return(false)
         InstallationConfig.find_or_initialize_by(name: 'CAPTAIN_OPEN_AI_MODEL').update!(value: 'gpt-5.1')
         account.enable_features!('captain_integration')
-        allow(mock_context).to receive(:chat).with(model: 'gpt-4.1').and_return(mock_chat)
+        allow(mock_context).to receive(:chat).with(model: 'qwen3.8-flash').and_return(mock_chat)
 
         expect(service.perform).to include(complete: true)
       end
@@ -55,10 +55,10 @@ RSpec.describe Captain::ConversationCompletionService do
         expect(service.perform).to include(complete: true)
       end
 
-      it 'falls back to the internal GPT-4.1 route when the self-hosted installation model is blank' do
+      it 'falls back to the conversation completion feature default when the self-hosted installation model is blank' do
         allow(ChatwootApp).to receive(:self_hosted_paid?).and_return(true)
         InstallationConfig.find_or_initialize_by(name: 'CAPTAIN_OPEN_AI_MODEL').update!(value: '')
-        allow(mock_context).to receive(:chat).with(model: 'gpt-4.1').and_return(mock_chat)
+        allow(mock_context).to receive(:chat).with(model: 'qwen3.8-flash').and_return(mock_chat)
 
         expect(service.perform).to include(complete: true)
       end

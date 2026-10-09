@@ -96,7 +96,7 @@ RSpec.describe 'Super Admin accounts API', type: :request do
         expect(completion_select.css('option').pluck('value')).to eq([''] + Llm::Models.models_for('conversation_completion'))
       end
 
-      it 'shows the Captain V2 assistant default in the model selector', if: ChatwootApp.enterprise? do
+      it 'shows the YAML assistant default in the model selector', if: ChatwootApp.enterprise? do
         account.enable_features!('captain_integration')
         sign_in(super_admin, scope: :super_admin)
 
@@ -104,7 +104,7 @@ RSpec.describe 'Super Admin accounts API', type: :request do
 
         document = Nokogiri::HTML(response.body)
         assistant_select = document.at_css('select[name="account[captain_models][assistant]"]')
-        default_model_id = Llm::FeatureRouter::CAPTAIN_V2_ASSISTANT_MODEL
+        default_model_id = Llm::Models.default_model_for('assistant')
         default_model = Llm::Models.model_config(default_model_id)['display_name']
 
         expect(response).to have_http_status(:success)

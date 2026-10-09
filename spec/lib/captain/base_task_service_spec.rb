@@ -186,7 +186,7 @@ RSpec.describe Captain::BaseTaskService do
     end
 
     it 'uses the help center article generation feature default' do
-      expect(mock_context).to receive(:chat).with(model: 'gpt-5.2').and_return(mock_chat)
+      expect(mock_context).to receive(:chat).with(model: 'qwen3.8-flash').and_return(mock_chat)
 
       service.send(:make_api_call, feature: 'help_center_article_generation', messages: messages)
     end

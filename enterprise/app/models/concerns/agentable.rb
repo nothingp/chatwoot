@@ -36,10 +36,7 @@ module Concerns::Agentable
   end
 
   def agent_model
-    route = Llm::FeatureRouter.resolve(feature: 'assistant', account: account)
-    return route[:model] if route[:source] == :account_override || account&.feature_enabled?('captain_integration')
-
-    installation_model.presence || route[:model]
+    Llm::FeatureRouter.resolve(feature: 'assistant', account: account)[:model]
   end
 
   private
@@ -60,10 +57,6 @@ module Concerns::Agentable
 
   def agent_tools
     []  # Default implementation, override if needed
-  end
-
-  def installation_model
-    InstallationConfig.find_by(name: 'CAPTAIN_OPEN_AI_MODEL')&.value
   end
 
   def agent_response_schema

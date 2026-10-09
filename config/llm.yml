@@ -95,7 +95,7 @@ features:
         gpt-5.2,
         qwen3.8-flash,
       ]
-    default: gpt-4.1
+    default: qwen3.8-flash
     internal: true
   editor:
     models:
@@ -111,7 +111,7 @@ features:
         gemini-3-pro,
         qwen3.8-flash,
       ]
-    default: gpt-4.1-mini
+    default: qwen3.8-flash
   assistant:
     models:
       [
@@ -126,7 +126,7 @@ features:
         gemini-3-pro,
         qwen3.8-flash,
       ]
-    default: gpt-4.1
+    default: qwen3.8-flash
   copilot:
     models:
       [
@@ -141,7 +141,7 @@ features:
         gemini-3-pro,
         qwen3.8-flash,
       ]
-    default: gpt-4.1
+    default: qwen3.8-flash
   document_faq_generation:
     models:
       [
@@ -156,7 +156,7 @@ features:
         gemini-3-pro,
         qwen3.8-flash,
       ]
-    default: gpt-4.1-mini
+    default: qwen3.8-flash
   conversation_faq_generation:
     models:
       [
@@ -171,7 +171,7 @@ features:
         gemini-3-pro,
         qwen3.8-flash,
       ]
-    default: gpt-5.2
+    default: qwen3.8-flash
   conversation_faq_matching:
     models:
       [
@@ -186,10 +186,10 @@ features:
         gemini-3-pro,
         qwen3.8-flash,
       ]
-    default: gpt-4.1-mini
+    default: qwen3.8-flash
   pdf_faq_generation:
     models: [gpt-4.1-mini, gpt-5-mini, gpt-4.1, gpt-5.1, gpt-5.2, qwen-long]
-    default: gpt-4.1-mini
+    default: qwen-long
   help_center_article_generation:
     models:
       [
@@ -204,17 +204,17 @@ features:
         gemini-3-pro,
         qwen3.8-flash,
       ]
-    default: gpt-5.2
+    default: qwen3.8-flash
   onboarding_content_generation:
     models:
       [gpt-4.1, gpt-4.1-mini, gpt-5-mini, gpt-5.1, gpt-5.2, qwen3.8-flash]
-    default: gpt-4.1
+    default: qwen3.8-flash
   help_center_query_translation:
     models: [gpt-4.1-nano, gpt-4.1-mini, gpt-5-mini, qwen3.8-flash]
-    default: gpt-4.1-nano
+    default: qwen3.8-flash
   audio_transcription:
     models: [gpt-4o-mini-transcribe, whisper-1]
     default: gpt-4o-mini-transcribe
   help_center_search:
     models: [text-embedding-3-small, qwen3.7-text-embedding]
-    default: text-embedding-3-small
+    default: qwen3.7-text-embedding

@@ -82,7 +82,7 @@ RSpec.describe 'Api::V1::Accounts::Captain::Preferences', type: :request do
         )
       end
 
-      it 'returns GPT-5.2 as the assistant default for V2 accounts' do
+      it 'returns the YAML assistant default for V2 accounts' do
         account.enable_features!('captain_integration')
 
         get "/api/v1/accounts/#{account.id}/captain/preferences",
@@ -91,13 +91,13 @@ RSpec.describe 'Api::V1::Accounts::Captain::Preferences', type: :request do
 
         expect(response).to have_http_status(:success)
         expect(json_response.dig(:features, :assistant)).to include(
-          default: Llm::FeatureRouter::CAPTAIN_V2_ASSISTANT_MODEL,
-          selected: Llm::FeatureRouter::CAPTAIN_V2_ASSISTANT_MODEL,
+          default: Llm::Models.default_model_for('assistant'),
+          selected: Llm::Models.default_model_for('assistant'),
           source: 'default'
         )
       end
 
-      it 'keeps the V2 assistant default when an account override is selected' do
+      it 'keeps the YAML assistant default when an account override is selected' do
         account.enable_features!('captain_integration')
         account.update!(captain_models: { 'assistant' => 'gpt-5.1' })
 
@@ -107,7 +107,7 @@ RSpec.describe 'Api::V1::Accounts::Captain::Preferences', type: :request do
 
         expect(response).to have_http_status(:success)
         expect(json_response.dig(:features, :assistant)).to include(
-          default: Llm::FeatureRouter::CAPTAIN_V2_ASSISTANT_MODEL,
+          default: Llm::Models.default_model_for('assistant'),
           selected: 'gpt-5.1',
           source: 'account_override'
         )

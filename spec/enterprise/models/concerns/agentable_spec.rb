@@ -194,17 +194,10 @@ RSpec.describe Concerns::Agentable do
       expect(dummy_instance.send(:agent_model)).to eq('gpt-5.2')
     end
 
-    it 'returns the installation model when account override is absent' do
-      create(:installation_config, name: 'CAPTAIN_OPEN_AI_MODEL', value: 'gpt-4.1-nano')
-
-      expect(dummy_instance.send(:agent_model)).to eq('gpt-4.1-nano')
-    end
-
-    it 'returns the Captain V2 default when Captain V2 is enabled' do
-      create(:installation_config, name: 'CAPTAIN_OPEN_AI_MODEL', value: 'gpt-4.1-nano')
+    it 'returns the assistant feature default when Captain V2 is enabled' do
       account.enable_features!('captain_integration')
 
-      expect(dummy_instance.send(:agent_model)).to eq('gpt-5.2')
+      expect(dummy_instance.send(:agent_model)).to eq(Llm::Models.default_model_for('assistant'))
       expect(account.reload.captain_models).to be_nil
     end
 

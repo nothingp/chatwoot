@@ -30,11 +30,11 @@ RSpec.describe Llm::BaseAiService do
       expect(described_class.new(feature: 'assistant', account: account).model).to eq('gpt-4.1-nano')
     end
 
-    it 'uses the Captain V2 assistant default ahead of the installation model' do
+    it 'uses the assistant feature default when Captain V2 is enabled' do
       create(:installation_config, name: 'CAPTAIN_OPEN_AI_MODEL', value: 'gpt-4.1-nano')
       account.enable_features!('captain_integration')
 
-      expect(described_class.new(feature: 'assistant', account: account).model).to eq('gpt-5.2')
+      expect(described_class.new(feature: 'assistant', account: account).model).to eq('qwen3.8-flash')
       expect(account.reload.captain_models).to be_nil
     end
 

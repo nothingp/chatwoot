@@ -1,7 +1,6 @@
 module Llm::FeatureRouter
   class UnknownFeatureError < StandardError; end
 
-  CAPTAIN_V2_ASSISTANT_MODEL = 'gpt-5.2'.freeze
   # pdf_faq_generation needs a model that honours DashScope's fileid:// references (qwen-long) and
   # audio_transcription is disabled, so neither may follow the installation-level chat model.
   # See the design doc §5.1: docs/superpowers/specs/2026-10-09-captain-llm-provider-migration-design.md
@@ -31,7 +30,7 @@ module Llm::FeatureRouter
       installation_model = installation_model_override(feature_key)
       return [installation_model, :installation_override] if installation_model.present?
 
-      [captain_assistant_model(account, feature_key) || Llm::Models.default_model_for(feature_key), :default]
+      [Llm::Models.default_model_for(feature_key), :default]
     end
 
     def account_model_override(account, feature_key)
@@ -49,13 +48,6 @@ module Llm::FeatureRouter
 
     def provider_for(model, source)
       Llm::Models.provider_for(model) || ('openai' if source == :installation_override)
-    end
-
-    def captain_assistant_model(account, feature_key)
-      return unless feature_key == 'assistant'
-      return unless account&.feature_enabled?('captain_integration')
-
-      CAPTAIN_V2_ASSISTANT_MODEL
     end
   end
 end

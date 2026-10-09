@@ -16,7 +16,7 @@ RSpec.describe Llm::FeatureRouter do
       expect(resolved).to eq(
         feature: 'editor',
         provider: 'openai',
-        model: 'gpt-4.1-mini',
+        model: 'qwen3.8-flash',
         source: :default
       )
     end
@@ -87,7 +87,7 @@ RSpec.describe Llm::FeatureRouter do
       )
     end
 
-    it 'resolves GPT-5.2 as the assistant default when Captain V2 is enabled without storing an account override' do
+    it 'resolves the configured assistant default when Captain V2 is enabled without an account override' do
       account.enable_features!('captain_integration')
 
       resolved = described_class.resolve(feature: 'assistant', account: account)
@@ -95,13 +95,13 @@ RSpec.describe Llm::FeatureRouter do
       expect(resolved).to include(
         feature: 'assistant',
         provider: 'openai',
-        model: 'gpt-5.2',
+        model: 'qwen3.8-flash',
         source: :default
       )
       expect(account.reload.captain_models).to be_nil
     end
 
-    it 'keeps account model overrides ahead of the Captain V2 default' do
+    it 'keeps account model overrides ahead of the assistant feature default' do
       account.enable_features!('captain_integration')
       account.update!(captain_models: { 'assistant' => 'gpt-5.1' })
 
@@ -119,7 +119,7 @@ RSpec.describe Llm::FeatureRouter do
       resolved = described_class.resolve(feature: 'editor', account: account)
 
       expect(resolved).to include(
-        model: 'gpt-4.1-mini',
+        model: 'qwen3.8-flash',
         source: :default
       )
     end
@@ -130,7 +130,7 @@ RSpec.describe Llm::FeatureRouter do
       resolved = described_class.resolve(feature: 'editor', account: account)
 
       expect(resolved).to include(
-        model: 'gpt-4.1-mini',
+        model: 'qwen3.8-flash',
         source: :default
       )
     end
