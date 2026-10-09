@@ -49,7 +49,9 @@ export default {
       return this.contentType === 'input_email';
     },
     isCards() {
-      return this.contentType === 'cards';
+      // A card whose content_type went missing must still render as a card; the variant is the
+      // same contract marker the server always sends alongside it.
+      return this.contentType === 'cards' || this.isNovyroPlanGroup;
     },
     isNovyroPlanGroup() {
       return this.messageContentAttributes?.variant === 'novyro_plan_group';

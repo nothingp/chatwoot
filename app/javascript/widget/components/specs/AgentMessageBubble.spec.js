@@ -29,9 +29,9 @@ const card = {
   actions: [{ type: 'link', text: '查看方案', uri: 'https://example.com/jp' }],
 };
 
-const mountBubble = messageContentAttributes =>
+const mountBubble = (messageContentAttributes, contentType = 'cards') =>
   mount(AgentMessageBubble, {
-    props: { contentType: 'cards', messageContentAttributes },
+    props: { contentType, messageContentAttributes },
     global: {
       stubs: { ChatCard: true },
       // Registered by the widget's own entry point, which a component spec does not load.
@@ -55,5 +55,22 @@ describe('AgentMessageBubble', () => {
 
     expect(wrapper.findAllComponents(ChatCard)).toHaveLength(2);
     expect(wrapper.findComponent(PlanCards).exists()).toBe(false);
+  });
+
+  it('renders the plan cards when content_type is missing but the variant is ours', () => {
+    const wrapper = mountBubble(
+      { variant: 'novyro_plan_group', items: [plan] },
+      ''
+    );
+
+    expect(wrapper.findComponent(PlanCards).props('items')).toEqual([plan]);
+    expect(wrapper.findAllComponents(ChatCard)).toHaveLength(0);
+  });
+
+  it('does not render cards for a plain message without content_type or our variant', () => {
+    const wrapper = mountBubble({}, '');
+
+    expect(wrapper.findComponent(PlanCards).exists()).toBe(false);
+    expect(wrapper.findAllComponents(ChatCard)).toHaveLength(0);
   });
 });
