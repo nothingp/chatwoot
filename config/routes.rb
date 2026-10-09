@@ -685,6 +685,7 @@ Rails.application.routes.draw do
 
         namespace :mobile_chat do
           resource :session, only: [:create]
+          resource :unread, only: [:create]
         end
       end
     end

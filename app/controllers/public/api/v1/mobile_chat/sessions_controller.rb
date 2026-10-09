@@ -1,8 +1,4 @@
-class Public::Api::V1::MobileChat::SessionsController < PublicController
-  UUID_V4 = /\A[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\z/i
-
-  rescue_from CustomExceptions::MobileChat::NotConfigured, with: :render_error_response
-
+class Public::Api::V1::MobileChat::SessionsController < Public::Api::V1::MobileChat::BaseController
   def create
     return render_bad_request('installationId must be a UUID v4') unless uuid_v4?(params[:installationId])
     return render_bad_request('anonymousProfileId must be a UUID v4') unless uuid_v4?(params[:anonymousProfileId])
@@ -46,14 +42,6 @@ class Public::Api::V1::MobileChat::SessionsController < PublicController
   # returning customer in the same conversation history instead of starting from scratch.
   def inbox
     @inbox ||= MobileChat::Config.inbox
-  end
-
-  def uuid_v4?(value)
-    UUID_V4.match?(value.to_s)
-  end
-
-  def render_bad_request(message)
-    render json: { error: message }, status: :bad_request
   end
 
   def session_response(session_id)
