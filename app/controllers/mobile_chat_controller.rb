@@ -11,10 +11,14 @@ class MobileChatController < ActionController::Base
     contact_inbox = ::ContactInbox.find_by(id: chat_session['contact_inbox_id'])
     return render_expired if inbox.blank? || contact_inbox.blank?
 
-    redirect_to widget_path(
+    # The widget reads its own UI language from this parameter, so the panel's chrome has to follow
+    # the locale the session recorded on the contact. A blank value is dropped rather than sent as
+    # an empty parameter, which would override the inbox default with nothing.
+    redirect_to widget_path({
       website_token: inbox.channel.website_token,
-      cw_conversation: widget_token(inbox, contact_inbox)
-    )
+      cw_conversation: widget_token(inbox, contact_inbox),
+      locale: contact_inbox.contact.custom_attributes['locale']
+    }.compact_blank)
   end
 
   private
