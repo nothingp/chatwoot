@@ -236,6 +236,11 @@ export default {
     },
     setUnreadView() {
       const { unreadMessageCount } = this;
+      // Our session entry is a full-screen conversation inside the app, not a bubble on a page.
+      // The unread preview belongs to the bubble case: its Close button only collapses a bubble,
+      // so here it is a dead control, and isWidgetOpen is never set without the official SDK
+      // anyway — which would arm this view permanently.
+      if (this.hasSessionHandoff) return;
       if (!this.showUnreadMessagesDialog || !this.isIFrame) return;
 
       // The unread view marks the widget as open, so only the route tells us it
