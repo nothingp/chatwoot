@@ -30,11 +30,11 @@ RSpec.describe Llm::BaseAiService do
       expect(described_class.new(feature: 'assistant', account: account).model).to eq('gpt-4.1-nano')
     end
 
-    it 'uses the Captain V2 assistant default ahead of the installation model' do
+    it 'uses the assistant feature default when Captain V2 is enabled' do
       create(:installation_config, name: 'CAPTAIN_OPEN_AI_MODEL', value: 'gpt-4.1-nano')
       account.enable_features!('captain_integration')
 
-      expect(described_class.new(feature: 'assistant', account: account).model).to eq('gpt-5.2')
+      expect(described_class.new(feature: 'assistant', account: account).model).to eq('qwen3.8-flash')
       expect(account.reload.captain_models).to be_nil
     end
 
@@ -87,6 +87,40 @@ RSpec.describe Llm::BaseAiService do
       allow(llm_chat).to receive(:with_temperature).with(0.7).and_return(configured_chat)
 
       expect(service.chat(model: 'gpt-4.1-mini', temperature: 0.7)).to eq(configured_chat)
+    end
+
+    it 'passes the model params to the chat when the model declares them' do
+      llm_chat = instance_double(RubyLLM::Chat)
+      configured_chat = instance_double(RubyLLM::Chat)
+      allow(RubyLLM).to receive(:chat).with(model: 'qwen3.8-flash').and_return(llm_chat)
+      allow(llm_chat).to receive(:with_provider_options).and_return(llm_chat)
+      allow(llm_chat).to receive(:with_temperature).with(1.0).and_return(configured_chat)
+
+      service.chat(model: 'qwen3.8-flash')
+
+      expect(llm_chat).to have_received(:with_provider_options).with(enable_thinking: false)
+    end
+
+    it 'merges the model params with the provider options the caller passes' do
+      llm_chat = instance_double(RubyLLM::Chat)
+      allow(RubyLLM).to receive(:chat).with(model: 'qwen3.8-flash').and_return(llm_chat)
+      allow(llm_chat).to receive(:with_temperature).and_return(llm_chat)
+      allow(llm_chat).to receive(:with_provider_options).and_return(llm_chat)
+
+      service.chat(model: 'qwen3.8-flash', provider_options: { response_format: { type: 'json_object' } })
+
+      expect(llm_chat).to have_received(:with_provider_options)
+        .with(enable_thinking: false, response_format: { type: 'json_object' })
+    end
+
+    it 'does not set provider options when the model declares none' do
+      llm_chat = instance_double(RubyLLM::Chat)
+      allow(RubyLLM).to receive(:chat).with(model: 'gpt-5.2').and_return(llm_chat)
+      allow(llm_chat).to receive(:with_provider_options)
+
+      service.chat(model: 'gpt-5.2')
+
+      expect(llm_chat).not_to have_received(:with_provider_options)
     end
   end
 end

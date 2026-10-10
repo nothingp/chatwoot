@@ -16,7 +16,7 @@ RSpec.describe Llm::FeatureRouter do
       expect(resolved).to eq(
         feature: 'editor',
         provider: 'openai',
-        model: 'gpt-4.1-mini',
+        model: 'qwen3.8-flash',
         source: :default
       )
     end
@@ -87,7 +87,7 @@ RSpec.describe Llm::FeatureRouter do
       )
     end
 
-    it 'resolves GPT-5.2 as the assistant default when Captain V2 is enabled without storing an account override' do
+    it 'resolves the configured assistant default when Captain V2 is enabled without an account override' do
       account.enable_features!('captain_integration')
 
       resolved = described_class.resolve(feature: 'assistant', account: account)
@@ -95,13 +95,13 @@ RSpec.describe Llm::FeatureRouter do
       expect(resolved).to include(
         feature: 'assistant',
         provider: 'openai',
-        model: 'gpt-5.2',
+        model: 'qwen3.8-flash',
         source: :default
       )
       expect(account.reload.captain_models).to be_nil
     end
 
-    it 'keeps account model overrides ahead of the Captain V2 default' do
+    it 'keeps account model overrides ahead of the assistant feature default' do
       account.enable_features!('captain_integration')
       account.update!(captain_models: { 'assistant' => 'gpt-5.1' })
 
@@ -119,7 +119,7 @@ RSpec.describe Llm::FeatureRouter do
       resolved = described_class.resolve(feature: 'editor', account: account)
 
       expect(resolved).to include(
-        model: 'gpt-4.1-mini',
+        model: 'qwen3.8-flash',
         source: :default
       )
     end
@@ -130,7 +130,7 @@ RSpec.describe Llm::FeatureRouter do
       resolved = described_class.resolve(feature: 'editor', account: account)
 
       expect(resolved).to include(
-        model: 'gpt-4.1-mini',
+        model: 'qwen3.8-flash',
         source: :default
       )
     end
@@ -138,6 +138,39 @@ RSpec.describe Llm::FeatureRouter do
     it 'raises for unknown features' do
       expect { described_class.resolve(feature: 'unknown_feature') }
         .to raise_error(described_class::UnknownFeatureError, 'Unknown LLM feature: unknown_feature')
+    end
+  end
+
+  describe 'installation model override scope' do
+    before do
+      allow(ChatwootApp).to receive(:self_hosted_paid?).and_return(true)
+      InstallationConfig.find_or_initialize_by(name: 'CAPTAIN_OPEN_AI_MODEL').update!(value: 'custom-model')
+    end
+
+    it 'applies the installation model to a non-internal feature' do
+      resolved = described_class.resolve(feature: 'editor', account: account)
+
+      expect(resolved).to include(model: 'custom-model', source: :installation_override)
+    end
+
+    it 'applies the installation model to the assistant feature' do
+      account.enable_features!('captain_integration')
+
+      resolved = described_class.resolve(feature: 'assistant', account: account)
+
+      expect(resolved).to include(model: 'custom-model', source: :installation_override)
+    end
+
+    it 'does not apply the installation model to pinned features' do
+      resolved = described_class.resolve(feature: 'pdf_faq_generation', account: account)
+
+      # Assert it falls through to the feature's own default rather than pinning a model name:
+      # T6 changes pdf_faq_generation's default to qwen-long.
+      expect(resolved).to include(model: Llm::Models.default_model_for('pdf_faq_generation'), source: :default)
+    end
+
+    it 'pins exactly the features that cannot follow the global chat model' do
+      expect(described_class::PINNED_MODEL_FEATURES).to eq(%w[pdf_faq_generation audio_transcription])
     end
   end
 end

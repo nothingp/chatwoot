@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import FluentIcon from 'shared/components/FluentIcon/Index.vue';
+import { IFrameHelper } from 'widget/helpers/utils';
 
 const props = defineProps({
   items: {
@@ -16,27 +17,66 @@ const props = defineProps({
 const STAT_ICONS = ['wifi', 'calendar'];
 const ARROW_ICON = 'arrow-right';
 const ICON_SIZE = 16;
-const FLAG_CLASSES = 'h-6 w-6 shrink-0 rounded-full object-cover';
+const FLAG_CLASSES = 'h-4 w-6 shrink-0 rounded-sm object-cover';
+const FACT_SEPARATOR = ' · ';
+// The primary card's radius and shadow come from `.chat-bubble` in the widget's _conversation.scss.
+// The alternatives card does not carry that class, so the same values are repeated here to make the
+// two cards read as one family. Do not add a border: the primary has none.
+const BUBBLE_SHAPE_CLASSES =
+  'rounded-[1.25rem] shadow-[0_0.25rem_6px_rgba(50,50,93,0.08),0_1px_3px_rgba(0,0,0,0.05)]';
+// The alternatives are divided by a hairline rather than a gap so they read as one card. It is set
+// on each row after the first, not with `divide-y` on the container, because the widget ships no
+// Tailwind border-style reset -- `_reset.scss` sets `border: 0` -- and a `divide-y` or `border-t`
+// that carries no style computes to 0px. `border-solid` is the load-bearing part: do not drop it.
+// `n-weak` is the theme-aware border colour (light 234,234,234 / dark 38,38,42).
+const ROW_DIVIDER_CLASSES = 'border-t border-solid border-n-weak';
 
 const { t } = useI18n();
 
 // Badge, fact labels and values and the call to action are sent already localized and are rendered
 // as they arrive; only the alternatives heading is the widget's own copy.
 const cards = computed(() =>
-  props.items.map(item => ({
-    title: item.title,
-    badge: item.badge,
-    countryImage: item.country_image,
-    stats: STAT_ICONS.map(icon =>
+  props.items.map(item => {
+    const stats = STAT_ICONS.map(icon =>
       (item.facts || []).find(fact => fact.icon === icon)
-    ).filter(Boolean),
-    action: (item.actions || [])[0] || {},
-  }))
+    ).filter(Boolean);
+    return {
+      title: item.title,
+      badge: item.badge,
+      countryImage: item.country_image,
+      stats,
+      // An alternative puts the same facts on one line instead of stacking them. A fact the item
+      // does not carry is already gone from `stats`, so the join leaves no stray separator.
+      summary: stats.map(stat => stat.value).join(FACT_SEPARATOR),
+      action: (item.actions || [])[0] || {},
+    };
+  })
 );
 const primary = computed(() => cards.value[0]);
 // The alternatives are keyed by position, not by checkout uri: nothing in the contract makes two
 // cards' uris differ, and a repeated key is not a key.
 const alternatives = computed(() => cards.value.slice(1));
+
+// CardButton.vue owns this postback protocol -- the widget sends it and the host page opens the
+// checkout from the payload, because the sandboxed iframe cannot navigate there itself. The guard
+// is CardButton's too: outside an iframe, which is where the app's WebView runs, it sends nothing
+// and the app opens the link action instead.
+const sendPostback = payload => {
+  if (IFrameHelper.isIFrame()) {
+    IFrameHelper.sendMessage({ event: 'postback', data: { payload } });
+  }
+};
+
+// A website session's action is a postback, so the call to action and the alternative rows are
+// buttons there and anchors for the app. Only the element differs; both carry the same behaviour.
+const actionAttributes = action =>
+  action.type === 'link'
+    ? {
+        href: action.uri,
+        target: '_blank',
+        rel: 'noopener nofollow noreferrer',
+      }
+    : { onClick: () => sendPostback(action.payload) };
 </script>
 
 <template>
@@ -87,12 +127,15 @@ const alternatives = computed(() => cards.value.slice(1));
         </div>
       </div>
 
-      <a
-        v-if="primary.action.uri"
-        :href="primary.action.uri"
-        target="_blank"
-        rel="noopener nofollow noreferrer"
-        class="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-n-brand px-4 py-2 text-sm font-medium text-white"
+      <!-- `!text-white` is forced on purpose: `.chat-bubble > a` in the widget's _conversation.scss
+           is a (0,1,1) selector and outranks a plain `text-white` utility (0,1,0), which paints the
+           label in the button's own blue. The arrow inherits the colour via `fill="currentColor"`.
+           A website session's postback turns the same pill into a button. -->
+      <component
+        :is="primary.action.type === 'link' ? 'a' : 'button'"
+        v-if="primary.action.type"
+        v-bind="actionAttributes(primary.action)"
+        class="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-n-brand px-4 py-2 text-center text-sm font-medium !text-white"
         data-test-id="plan-card-cta"
       >
         {{ primary.action.text }}
@@ -101,7 +144,7 @@ const alternatives = computed(() => cards.value.slice(1));
           :size="ICON_SIZE"
           class="rtl:rotate-180"
         />
-      </a>
+      </component>
     </div>
 
     <div v-if="alternatives.length">
@@ -111,32 +154,30 @@ const alternatives = computed(() => cards.value.slice(1));
       >
         {{ t('CARD.ALTERNATIVES') }}
       </p>
-      <div class="grid grid-cols-2 gap-2">
-        <a
+      <!-- The rows are siblings of the primary `.chat-bubble`, not descendants of it, so the
+           `.chat-bubble > a` colour rule cannot reach them; the label colour is still explicit. -->
+      <div
+        class="bg-n-background dark:bg-n-solid-3 overflow-hidden"
+        :class="BUBBLE_SHAPE_CLASSES"
+      >
+        <component
+          :is="alternative.action.type === 'link' ? 'a' : 'button'"
           v-for="(alternative, index) in alternatives"
           :key="index"
-          :href="alternative.action.uri"
-          target="_blank"
-          rel="noopener nofollow noreferrer"
-          class="bg-n-background dark:bg-n-solid-3 flex flex-col gap-1 rounded-lg p-3"
+          v-bind="actionAttributes(alternative.action)"
+          class="flex items-center justify-between gap-2 px-3 py-3 text-start"
+          :class="index > 0 ? ROW_DIVIDER_CLASSES : ''"
           data-test-id="plan-card-alternative"
         >
-          <span class="text-xs font-medium text-n-slate-11">
-            {{ alternative.badge }}
-          </span>
-          <span
-            v-for="stat in alternative.stats"
-            :key="stat.icon"
-            class="text-sm font-medium text-n-slate-12"
-          >
-            {{ stat.value }}
+          <span class="text-sm font-medium text-n-slate-12">
+            {{ alternative.summary }}
           </span>
           <FluentIcon
             :icon="ARROW_ICON"
             :size="ICON_SIZE"
-            class="ms-auto text-n-slate-11 rtl:rotate-180"
+            class="shrink-0 text-n-slate-11 rtl:rotate-180"
           />
-        </a>
+        </component>
       </div>
     </div>
   </div>

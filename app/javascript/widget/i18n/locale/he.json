@@ -57,6 +57,9 @@
   "BUBBLE": {
     "LABEL": "דבר איתנו"
   },
+  "CARD": {
+    "ALTERNATIVES": "אפשר גם לשקול"
+  },
   "POWERED_BY": "מופעל על ידי Chatwoot",
   "EMAIL_PLACEHOLDER": "הזן בבקשה את האימייל שלך",
   "CHAT_PLACEHOLDER": "הקלד הודעה",

@@ -186,7 +186,7 @@ RSpec.describe Captain::BaseTaskService do
     end
 
     it 'uses the help center article generation feature default' do
-      expect(mock_context).to receive(:chat).with(model: 'gpt-5.2').and_return(mock_chat)
+      expect(mock_context).to receive(:chat).with(model: 'qwen3.8-flash').and_return(mock_chat)
 
       service.send(:make_api_call, feature: 'help_center_article_generation', messages: messages)
     end
@@ -438,6 +438,29 @@ RSpec.describe Captain::BaseTaskService do
 
       result = service.send(:extract_original_context, messages)
       expect(result).to eq('Single question')
+    end
+  end
+
+  describe 'provider params passthrough' do
+    let(:mock_chat) { instance_double(RubyLLM::Chat) }
+    let(:mock_context) { instance_double(RubyLLM::Context, chat: mock_chat) }
+    let(:messages) { [{ role: 'system', content: 'You are helpful' }] }
+
+    before do
+      allow(mock_chat).to receive(:with_instructions)
+      allow(mock_chat).to receive(:with_provider_options)
+    end
+
+    it 'passes the params to the chat when the model declares them' do
+      service.send(:build_chat, mock_context, model: 'qwen3.8-flash', messages: messages)
+
+      expect(mock_chat).to have_received(:with_provider_options).with(enable_thinking: false)
+    end
+
+    it 'does not configure provider options when the model declares none' do
+      service.send(:build_chat, mock_context, model: 'gpt-4.1', messages: messages)
+
+      expect(mock_chat).not_to have_received(:with_provider_options)
     end
   end
 end

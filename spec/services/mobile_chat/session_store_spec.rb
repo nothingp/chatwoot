@@ -12,10 +12,10 @@ RSpec.describe MobileChat::SessionStore do
       expect(session_id).to match(/\A[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\z/)
     end
 
-    it 'stores the inbox and contact inbox ids under a 20 minute ttl' do
+    it 'stores the inbox and contact inbox ids under the configured widget token expiry' do
       session_id = described_class.create(contact_inbox: contact_inbox, inbox: inbox)
 
-      expect(Redis::Alfred.ttl(described_class.key(session_id))).to be_within(5).of(20.minutes.to_i)
+      expect(Redis::Alfred.ttl(described_class.key(session_id))).to be_within(5).of(Widget::TokenService.expiry_days.days.to_i)
     end
   end
 
@@ -46,14 +46,14 @@ RSpec.describe MobileChat::SessionStore do
   end
 
   describe '.expires_at' do
-    it 'returns a millisecond timestamp inside the 20 minute window' do
+    it 'returns a millisecond timestamp inside the configured widget token expiry window' do
       before_call = Time.current
       expires_at = described_class.expires_at
       after_call = Time.current
 
       expect(expires_at).to be_a(Integer)
       expect(expires_at).to be > (before_call.to_i * 1000) + 1_000
-      expect(expires_at).to be <= (after_call.to_i + (20 * 60)) * 1000
+      expect(expires_at).to be <= (after_call.to_i + Widget::TokenService.expiry_days.days.to_i) * 1000
     end
   end
 end

@@ -26,6 +26,8 @@ RSpec.describe Captain::Llm::PdfProcessingService do
 
     context 'when uploading PDF to OpenAI' do
       let(:mock_client) { instance_double(OpenAI::Client) }
+      # Use a simple double for OpenAI::Files as it may not be loaded
+      let(:files_api) { double('files_api') } # rubocop:disable RSpec/VerifiedDoubles
       let(:pdf_content) { 'PDF content' }
       let(:blob_double) { instance_double(ActiveStorage::Blob) }
       let(:pdf_file) { instance_double(ActiveStorage::Attachment) }
@@ -37,14 +39,20 @@ RSpec.describe Captain::Llm::PdfProcessingService do
         allow(blob_double).to receive(:open).and_yield(StringIO.new(pdf_content))
 
         allow(OpenAI::Client).to receive(:new).and_return(mock_client)
-        # Use a simple double for OpenAI::Files as it may not be loaded
-        files_api = double('files_api') # rubocop:disable RSpec/VerifiedDoubles
         allow(files_api).to receive(:upload).and_return({ 'id' => 'file-abc123' })
         allow(mock_client).to receive(:files).and_return(files_api)
       end
 
       it 'uploads PDF and stores file ID' do
         expect(document).to receive(:store_openai_file_id).with('file-abc123')
+        service.process
+      end
+
+      it 'uploads the PDF with the file-extract purpose DashScope requires' do
+        expect(files_api).to receive(:upload)
+          .with(parameters: hash_including(purpose: 'file-extract'))
+          .and_return({ 'id' => 'file-abc123' })
+
         service.process
       end
 

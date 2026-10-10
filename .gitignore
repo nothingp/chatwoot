@@ -97,6 +97,9 @@ yarn-debug.log*
 .codex/
 .claude/
 CLAUDE.local.md
+# Local MCP config holds a live Bearer token and this repo is public — never commit it.
+# To share a template, add .mcp.json.example with the token as a ${VAR} placeholder.
+.mcp.json
 
 # Histoire deployment
 .netlify
@@ -108,3 +111,6 @@ Procfile.worktree
 
 # SDD scratch (ledger, briefs, review packages) — never commit
 .superpowers/
+
+# Playwright MCP session cache (console logs, snapshots) — never commit
+.playwright-mcp/

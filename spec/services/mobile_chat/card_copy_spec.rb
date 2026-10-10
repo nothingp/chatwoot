@@ -129,4 +129,27 @@ RSpec.describe MobileChat::CardCopy do
       expect(described_class.sanitize_action_text('a' * 121, fallback)).to eq(fallback)
     end
   end
+
+  describe '.web_locale_prefix' do
+    # The store's paths use hyphens where the app writes an underscore.
+    it 'spells the language the way the store does' do
+      expect(described_class.web_locale_prefix('zh_CN')).to eq('/zh-CN')
+    end
+
+    it 'canonicalizes first, so a regional variant still reaches the store path' do
+      expect(described_class.web_locale_prefix('zh-Hant')).to eq('/zh-Hant')
+      expect(described_class.web_locale_prefix('pt')).to eq('/pt-BR')
+    end
+
+    it 'leaves the prefix off english, which is the store root' do
+      expect(described_class.web_locale_prefix('en')).to eq('')
+      expect(described_class.web_locale_prefix('en_GB')).to eq('')
+    end
+
+    # Anything the copy dictionary does not carry canonicalizes to english, so it lands on the root
+    # rather than on a path the store does not serve.
+    it 'leaves the prefix off a language the store does not serve' do
+      expect(described_class.web_locale_prefix('xx_YY')).to eq('')
+    end
+  end
 end

@@ -44,9 +44,9 @@ export default {
       );
     },
     showBackButton() {
-      return ['article-viewer', 'messages', 'prechat-form'].includes(
-        this.$route.name
-      );
+      // 会话页不再需要返回键：默认就落在会话页，回去那个首页已经没有入口。
+      // article-viewer 和 prechat-form 保留 —— 那两处没有返回键客户会卡住。
+      return ['article-viewer', 'prechat-form'].includes(this.$route.name);
     },
     isOnArticleViewer() {
       return ['article-viewer'].includes(this.$route.name);

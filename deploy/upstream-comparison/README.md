@@ -49,7 +49,11 @@ Chatwoot 这种体量会慢到不可用。走 `DOCKER_HOST=ssh://` 不需要本�
 ./deploy.sh --tag <tag>     # 切到已构建的 tag，不重新构建
 ```
 
-`deploy.sh` 会自动改写服务器上 `docker-compose.yml` 里那行 `image:`。
+`deploy.sh` 会把**本仓库的 `docker-compose.yml` 整个同步到服务器**（`$REMOTE_DIR/docker-compose.yml`），
+再改写里面那行 `image:` 为本次构建的 tag。
+
+仓库里那份是唯一事实来源 —— 改 compose 只要改仓库里的，跑一次 `deploy.sh` 就会生效
+（`--tag` 那条路径也同步）。顺序是先同步再写 tag，反过来 tag 会被仓库里的 `image: dev` 覆盖。
 
 ⚠️ **构建跑在生产机上**（那台机器同时跑着客服生产栈）：4 核，可用内存约 5～6G，
 而 vite 构建要 4G 堆。构建期间盯一眼 `free -h`，别让它把生产栈挤 OOM。
@@ -91,6 +95,88 @@ schedule.yml  internal_check_new_versions_job   cron 0 0 * * *
 ⚠️ 副作用：`check_new_versions_job.rb` 的 `update_version_info` 里
 `@instance_info['version']` 会对 `nil` 抛 `NoMethodError`（`@instance_info` 是 nil）。
 结果是对的（崩在写 plan 之前），但**每天日志里会多一条 ERROR**。
+
+---
+
+## 挂载的 LLM 配置（需跟随上游手动同步）
+
+`config/llm.yml` 与 `config/llm_models.json` 通过 volume 从服务器上的
+`/opt/chatwoot-upstream/config/` 挂入容器的 `/app/config/`（两条都 `:ro`），
+挂在 compose 的 `x-chatwoot-base` 锚点上，所以 rails 和 sidekiq 都生效。
+
+**为什么挂**：这两个文件在启动时被读进冻结常量（`Llm::Models::CONFIG`），
+不挂的话换模型 = 改仓库 + 重建镜像（约 40 分钟，还在这台跑着生产栈的机上）+ 重新部署。
+挂上之后是改文件 + 重启容器。
+
+**为什么源在 `/opt` 而不是仓库里**：compose 只把工作树当构建上下文交给服务器 daemon，
+构建完就丢弃；运行期的 `/app/config/*` 来自镜像。所以挂载源必须是服务器上的常驻文件。
+
+⚠️ **两个文件必须在第一次 `up -d`（或任何重建）之前就存在。** 缺失时 Docker 不报错，
+而是**在挂载点把它建成一个目录**（实测 `drwxr-xr-x root root`），容器照常启动，
+直到读配置才以一个莫名其妙的错误倒下。先按下面第一段把 `/opt/…/config/` 准备好。
+
+这一节的命令有的跑在服务器上、有的跑在笔记本（仓库）上 —— **每段前面标了在哪执行**。
+
+### 准备 / 重新从镜像抽取 `/opt` 下的那两份
+
+**在服务器上执行**（镜像只存在于服务器的 image store 里）：
+
+```bash
+# 目录必须先存在且属当前用户；否则 docker run 里的 cp 会 EACCES
+#（缺目录时 daemon 会把它建成 root:root，写不进去）。
+mkdir -p /opt/chatwoot-upstream/config
+sudo -n chown ubuntu:ubuntu /opt/chatwoot-upstream/config
+
+# 从当前运行的镜像里抽出来（不要从仓库拷 —— 见下面的漂移警告）。
+# -u "$(id -u):$(id -g)" 让抽出来的文件属当前用户（默认会属 root，编辑时还得 sudo）。
+sudo -n docker run --rm -u "$(id -u):$(id -g)" \
+  -v /opt/chatwoot-upstream/config:/out --entrypoint sh \
+  "$(sudo -n docker inspect -f '{{.Config.Image}}' chatwoot-upstream-rails-1)" \
+  -c 'cp /app/config/llm.yml /app/config/llm_models.json /out/'
+```
+
+⚠️ **这段会覆盖宿主机上现有的 `llm.yml` / `llm_models.json`。** 若这两份是你在服务器上
+直接调过的（比如换过模型），一跑就没了 —— 要么先备份，要么先把它 scp 回仓库。
+
+### 改完记得重启
+
+**在服务器上执行**。单文件 bind mount 挂的是**容器启动时解析到的那个 inode**：
+原地追加（`>>`）容器立刻能看到，但用编辑器、`sed -i`、`mv` 这类**换 inode** 的写法，
+容器在重启前仍读旧文件。所以改完统一重启：
+
+```bash
+cd /opt/chatwoot-upstream && sudo -n docker compose restart rails sidekiq
+```
+
+（`restart` 会按路径重新解析，换 inode 的编辑也能生效；不必 `up -d` 重建。）
+
+### 漂移
+
+⚠️ **挂载之后线上跑的是宿主机那份，仓库里那份被完全遮住 —— 两边会互相漂移。**
+
+- **上游改了结构**（例如 `llm.yml` 新增必填字段、`llm_models.json` 换格式）：
+  重建后的镜像里是新版，但被宿主机那份旧的盖住，轻则启动报错、重则加载到旧配置。
+  跟进上游时要手动 diff 并同步。
+- **改了仓库里的 `config/llm.yml` 不会自动生效**：mount 把它整个遮住了，
+  必须同步到宿主机那份再重启，否则改了等于没改。
+
+查两边是否一致 —— **在服务器上执行**（tag 从运行中的容器取，不写死）：
+
+```bash
+IMG=$(sudo -n docker inspect -f '{{.Config.Image}}' chatwoot-upstream-rails-1)
+echo "镜像：$IMG"
+sudo -n docker run --rm --entrypoint md5sum "$IMG" /app/config/llm.yml /app/config/llm_models.json
+echo "宿主机："; md5sum /opt/chatwoot-upstream/config/llm*
+```
+
+把仓库那份推上服务器 —— **在笔记本上、仓库根目录执行**（仓库不在服务器上）：
+
+```bash
+scp config/llm.yml config/llm_models.json ubuntu@32.236.75.213:/opt/chatwoot-upstream/config/
+```
+
+推完同样会覆盖宿主机那份（同上，先确认没丢你在服务器上做的改动），
+再**回到服务器上**重启才生效：`sudo -n docker compose restart rails sidekiq`。
 
 ---
 

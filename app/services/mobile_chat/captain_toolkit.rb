@@ -28,6 +28,10 @@ class MobileChat::CaptainToolkit
   # is a wall. This is also the message validator's own item limit.
   CARD_LIMIT = 5
 
+  # The platform the session recorded (MobileChat::ContactCredentials): only the website embeds the
+  # widget in an iframe, and only there does the checkout have to go out as a postback.
+  WEB_PLATFORM = 'web'.freeze
+
   # The raw order payload also carries QR codes, full ICCIDs and internal supplier fields.
   # Whitelist instead of passing it through: this is rendered into the customer's prompt.
   ORDER_KEYS = %i[
@@ -356,7 +360,7 @@ class MobileChat::CaptainToolkit
   # they are missing or not ids at all.
   def purchase_request_error(product_id, sku_ids)
     return 'product_id and one to five sku_ids are required.' if product_id.blank? || sku_ids.empty?
-    return 'product_id and sku_ids must be numeric ids.' unless [product_id, *sku_ids].all? { |id| checkout_id?(id) }
+    return 'product_id and sku_ids must be numeric ids.' unless [product_id, *sku_ids].all? { |id| NovyroPlanContract.checkout_id?(id) }
 
     nil
   end
@@ -366,20 +370,58 @@ class MobileChat::CaptainToolkit
   # it. The title carries the destination and the optional `country_image` is the flag beside it.
   def purchase_card(product, sku, copy, primary:, params:)
     flag = country_image(product)
+    label = MobileChat::CardCopy.sanitize_action_text(primary ? param(params, :label) : nil, copy['cta'])
     card = {
       title: product[:name].to_s,
       description: MobileChat::CardCopy.sanitize_description(primary ? param(params, :reason) : nil, copy['description']),
       media_url: '',
       badge: primary ? copy['primary'] : copy['alternative'],
       facts: purchase_facts(sku, copy),
-      actions: [{
-        type: 'link',
-        text: MobileChat::CardCopy.sanitize_action_text(primary ? param(params, :label) : nil, copy['cta']),
-        uri: checkout_uri(product[:product_id], sku[:sku_id])
-      }]
+      actions: [purchase_action(label, product_id: product[:product_id], sku_id: sku[:sku_id])]
     }
     card[:country_image] = flag if flag
     card
+  end
+
+  # The website embeds the widget in a sandboxed iframe, where a link cannot open the checkout at
+  # all, so the action carries the store's checkout url as a postback for the host page to open --
+  # which Chatwoot does, and only inside an iframe. The app loads the chat top-level in a WebView,
+  # where Chatwoot never emits a postback and the app intercepts the link itself, so a missing or
+  # unrecognised platform keeps that link rather than leaving the app with a dead button.
+  def purchase_action(text, product_id:, sku_id:)
+    return { type: 'link', text: text, uri: app_checkout_uri(product_id, sku_id) } unless web_platform?
+
+    payload = JSON.generate(
+      {
+        type: NovyroPlanContract::NOVYRO_PLAN_POSTBACK_TYPE,
+        url: web_checkout_uri(sku_id),
+        goods_id: product_id.to_s,
+        sku_id: sku_id.to_s
+      }.merge(session_payload)
+    )
+    { type: 'postback', text: text, payload: payload }
+  end
+
+  # Only the website embeds the widget in an iframe, and only there does the checkout have to go
+  # out as a postback rather than open as a link. That is what the session's platform records.
+  def web_platform?
+    contact&.custom_attributes&.dig('platform') == WEB_PLATFORM
+  end
+
+  # The store's checkout, in the customer's language: the store picks its copy from the path, and
+  # the sku is the plan the customer chose. The domain is deployment configuration because the same
+  # image serves more than one storefront.
+  def web_checkout_uri(sku_id)
+    prefix = MobileChat::CardCopy.web_locale_prefix(client_locale)
+    "#{MobileChat::Config.web_base_url}#{prefix}/checkout?skuId=#{sku_id}"
+  end
+
+  # The session values the client declared when it opened the chat (MobileChat::ContactCredentials),
+  # echoed back so the host page reads what it already sent instead of guessing. Built by key on
+  # purpose: the same attributes hold the app token, and that is a credential.
+  def session_payload
+    attributes = contact&.custom_attributes || {}
+    NovyroPlanContract::NOVYRO_PLAN_PAYLOAD_SESSION_KEYS.filter_map { |key| [key, attributes[key]] if attributes[key].present? }.to_h
   end
 
   # The widget renders the flag from this url, and the write-time validator accepts only an https
@@ -450,7 +492,7 @@ class MobileChat::CaptainToolkit
   # The app opens its own checkout from this path; the website handles the click itself. All three
   # query terms are required by the message validator, so a missing catalog environment has to
   # come from deployment config rather than be dropped.
-  def checkout_uri(product_id, sku_id)
+  def app_checkout_uri(product_id, sku_id)
     query = URI.encode_www_form(goods_id: product_id, sku_id: sku_id, catalog_env: catalog_environment)
     "#{MobileChat::Config.frontend_url}/app-actions/checkout?#{query}"
   end
@@ -458,12 +500,6 @@ class MobileChat::CaptainToolkit
   def catalog_environment
     contact&.custom_attributes&.dig('catalog_environment').presence ||
       MobileChat::Config.value('NOVYRO_CATALOG_ENVIRONMENT')
-  end
-
-  # Bounded by the validator's own limit, so an id it would reject at write time is rejected here
-  # instead, where the model reads an error rather than the message write raising.
-  def checkout_id?(value)
-    value.match?(/\A[0-9]+\z/) && value.to_i.between?(1, ContentAttributeValidator::NOVYRO_PLAN_MAX_SAFE_ID)
   end
 
   # The clients send these on every session; upstream rejects a malformed value, and a cosmetic

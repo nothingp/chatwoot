@@ -58,6 +58,12 @@ export default {
     isIFrame() {
       return IFrameHelper.isIFrame();
     },
+    // cw_handoff is minted only by our /mobile-chat handoff redirect. cw_conversation
+    // cannot serve as the marker: the official SDK also puts it in the widget URL
+    // whenever its 365-day cookie exists (sdk/IFrameHelper.js).
+    hasSessionHandoff() {
+      return new URLSearchParams(window.location.search).has('cw_handoff');
+    },
     isRNWebView() {
       return RNHelper.isRNWebView();
     },
@@ -95,13 +101,18 @@ export default {
     this.setWidgetColor(widgetColor);
     this.setWidgetColorVariable(widgetColor);
     setHeader(window.authToken);
-    if (this.isIFrame) {
-      this.registerListeners();
-      this.sendLoadedEvent();
-    } else {
+    // Our session handoff also fetches inside an iframe: it is embedded without the official SDK,
+    // so the config-set handshake never arrives and the widget never fetches the conversation
+    // history at all. Fetching on this entry closes that gap.
+    const selfFetches = !this.isIFrame || this.hasSessionHandoff;
+    if (selfFetches) {
       this.fetchOldConversations();
       this.fetchAvailableAgents(websiteToken);
       this.setLocale(getLocale(window.location.search));
+    }
+    if (this.isIFrame) {
+      this.registerListeners();
+      this.sendLoadedEvent();
     }
     if (this.isRNWebView) {
       this.registerListeners();
@@ -225,6 +236,11 @@ export default {
     },
     setUnreadView() {
       const { unreadMessageCount } = this;
+      // Our session entry is a full-screen conversation inside the app, not a bubble on a page.
+      // The unread preview belongs to the bubble case: its Close button only collapses a bubble,
+      // so here it is a dead control, and isWidgetOpen is never set without the official SDK
+      // anyway — which would arm this view permanently.
+      if (this.hasSessionHandoff) return;
       if (!this.showUnreadMessagesDialog || !this.isIFrame) return;
 
       // The unread view marks the widget as open, so only the route tells us it

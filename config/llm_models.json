@@ -61508,5 +61508,50 @@
       "object": "model",
       "owned_by": "xai"
     }
+  },
+  {
+    "id": "qwen3.8-flash",
+    "name": "Qwen3.8 Flash",
+    "provider": "openai",
+    "family": "qwen",
+    "context_window": 991000,
+    "max_output_tokens": 128000,
+    "modalities": { "input": ["text"], "output": ["text"] },
+    "capabilities": ["function_calling"],
+    "metadata": {
+      "provider_id": "openai",
+      "temperature": true,
+      "limit": { "context": 991000, "output": 128000 }
+    }
+  },
+  {
+    "id": "qwen3.7-text-embedding",
+    "name": "Qwen3.7 Text Embedding",
+    "provider": "openai",
+    "family": "qwen",
+    "context_window": 8192,
+    "max_output_tokens": 0,
+    "modalities": { "input": ["text"], "output": ["text"] },
+    "capabilities": [],
+    "metadata": {
+      "provider_id": "openai",
+      "temperature": false,
+      "limit": { "context": 8192, "output": 0 }
+    }
+  },
+  {
+    "id": "qwen-long",
+    "name": "Qwen Long",
+    "provider": "openai",
+    "family": "qwen",
+    "context_window": 991000,
+    "max_output_tokens": 8192,
+    "modalities": { "input": ["text"], "output": ["text"] },
+    "capabilities": [],
+    "metadata": {
+      "provider_id": "openai",
+      "temperature": true,
+      "limit": { "context": 991000, "output": 8192 }
+    }
   }
 ]

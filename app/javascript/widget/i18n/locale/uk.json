@@ -57,6 +57,9 @@
   "BUBBLE": {
     "LABEL": "Напишіть нам"
   },
+  "CARD": {
+    "ALTERNATIVES": "Також можна розглянути"
+  },
   "POWERED_BY": "Працює на Chatwoot",
   "EMAIL_PLACEHOLDER": "Введіть адресу електронної пошти",
   "CHAT_PLACEHOLDER": "Введіть Ваше повідомлення",

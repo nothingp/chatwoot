@@ -57,6 +57,9 @@
   "BUBBLE": {
     "LABEL": "Chat dengan kami"
   },
+  "CARD": {
+    "ALTERNATIVES": "Anda juga bisa mempertimbangkan"
+  },
   "POWERED_BY": "Powered by Chatwoot",
   "EMAIL_PLACEHOLDER": "Masukkan email Anda",
   "CHAT_PLACEHOLDER": "Ketik pesan Anda",

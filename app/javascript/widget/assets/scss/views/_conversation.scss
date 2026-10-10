@@ -132,17 +132,19 @@
       margin-top: auto;
     }
 
-    .chat-bubble {
+    // Direct child only: a card message nests its own bubbles (PlanCards, ChatCard) inside this
+    // wrapper, and the border and the corner overrides below belong to the plain unread bubble.
+    > .chat-bubble {
       @apply border border-solid border-n-slate-5 dark:border-n-slate-11/50 text-n-black;
     }
 
     + .chat-bubble-wrap {
-      .chat-bubble {
+      > .chat-bubble {
         @apply ltr:rounded-tl-[0.25rem] rtl:rounded-tr-[0.25rem];
       }
     }
 
-    &:last-child .chat-bubble {
+    &:last-child > .chat-bubble {
       @apply ltr:rounded-bl-[1.25rem] rtl:rounded-br-[1.25rem];
     }
   }
@@ -152,17 +154,17 @@
   @apply ltr:text-right rtl:text-left overflow-hidden;
 
   .chat-bubble-wrap {
-    .chat-bubble {
+    > .chat-bubble {
       @apply ltr:rounded-br-[0.25rem] rtl:rounded-bl-[0.25rem] rounded-[1.25rem];
     }
 
     + .chat-bubble-wrap {
-      .chat-bubble {
+      > .chat-bubble {
         @apply ltr:rounded-tr-[0.25rem] rtl:rounded-tl-[0.25rem];
       }
     }
 
-    &:last-child .chat-bubble {
+    &:last-child > .chat-bubble {
       @apply ltr:rounded-br-[1.25rem] rtl:rounded-bl-[1.25rem];
     }
   }

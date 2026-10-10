@@ -57,6 +57,9 @@
   "BUBBLE": {
     "LABEL": "تحدث الينا"
   },
+  "CARD": {
+    "ALTERNATIVES": "يمكنك أيضًا النظر في"
+  },
   "POWERED_BY": "مدعوم بواسطة Chatwoot",
   "EMAIL_PLACEHOLDER": "الرجاء إدخال بريدك الإلكتروني",
   "CHAT_PLACEHOLDER": "أكتب رسالتك",

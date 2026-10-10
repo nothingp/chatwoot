@@ -15,3 +15,7 @@ vendor/bundle
 .DS_Store
 *.swp
 *~
+# Agent worktrees and local agent config: a worktree is a whole copy of the repo, and the
+# Docker build context is the working tree, not the git index — so these would ship inside the image.
+.claude
+.codex

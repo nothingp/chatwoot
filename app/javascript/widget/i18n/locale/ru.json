@@ -57,6 +57,9 @@
   "BUBBLE": {
     "LABEL": "Пообщайтесь с нами"
   },
+  "CARD": {
+    "ALTERNATIVES": "Также можно рассмотреть"
+  },
   "POWERED_BY": "Работает на Chatwoot",
   "EMAIL_PLACEHOLDER": "Пожалуйста, введите ваш email",
   "CHAT_PLACEHOLDER": "Введите сообщение",

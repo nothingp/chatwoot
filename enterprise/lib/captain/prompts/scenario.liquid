@@ -12,7 +12,9 @@ If you believe the user's request is not within the scope of your role, you can 
 
 {% render 'current_time', current_time: current_time %}
 
-{% render 'core_rules' %}
+{% render 'core_rules', language: language %}
+
+{% render 'answer_delivery' %}
 
 {% if playground_knowledge -%}
 # Playground Reference Material

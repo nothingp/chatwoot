@@ -57,6 +57,9 @@
   "BUBBLE": {
     "LABEL": "Xateja amb nosaltres"
   },
+  "CARD": {
+    "ALTERNATIVES": "També pots considerar"
+  },
   "POWERED_BY": "Desenvolupat per Chatwoot",
   "EMAIL_PLACEHOLDER": "Introduïu el correu electrònic",
   "CHAT_PLACEHOLDER": "Escriu el missatge",

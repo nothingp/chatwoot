@@ -34,6 +34,16 @@ module MobileChat::Config
     novyro_url(value('NOVYRO_USER_INFO_PATH'))
   end
 
+  # The storefront the plan cards lead into. The same image serves more than one storefront, so the
+  # domain is deployment configuration rather than a constant. A malformed base is an operator error
+  # like the rest of these, not something to paper over with a default.
+  def self.web_base_url
+    base = value('NOVYRO_WEB_BASE_URL').chomp('/')
+    return base if absolute_http_url?(base)
+
+    raise(CustomExceptions::MobileChat::NotConfigured, 'NOVYRO_WEB_BASE_URL')
+  end
+
   def self.absolute_http_url?(url)
     uri = URI.parse(url)
     uri.is_a?(URI::HTTP) && uri.host.present?

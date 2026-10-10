@@ -49,10 +49,9 @@ RSpec.describe Concerns::Agentable do
       expect(Agents::Agent).to receive(:new).with(
         name: 'Test Agent',
         instructions: instance_of(Proc),
-        tools: [],
+        tools: [instance_of(Captain::Tools::EmitAnswerTool)],
         model: 'gpt-5-mini',
-        temperature: nil,
-        response_schema: Captain::ResponseSchema
+        temperature: nil
       )
 
       dummy_instance.agent
@@ -73,6 +72,16 @@ RSpec.describe Concerns::Agentable do
 
       expect(Agents::Agent).to receive(:new).with(
         hash_including(temperature: 0.5)
+      )
+
+      dummy_instance.agent
+    end
+
+    it 'passes the model params to the agent when the model declares them' do
+      account.update!(captain_models: { 'assistant' => 'qwen3.8-flash' })
+
+      expect(Agents::Agent).to receive(:new).with(
+        hash_including(params: { enable_thinking: false })
       )
 
       dummy_instance.agent
@@ -184,17 +193,10 @@ RSpec.describe Concerns::Agentable do
       expect(dummy_instance.send(:agent_model)).to eq('gpt-5.2')
     end
 
-    it 'returns the installation model when account override is absent' do
-      create(:installation_config, name: 'CAPTAIN_OPEN_AI_MODEL', value: 'gpt-4.1-nano')
-
-      expect(dummy_instance.send(:agent_model)).to eq('gpt-4.1-nano')
-    end
-
-    it 'returns the Captain V2 default when Captain V2 is enabled' do
-      create(:installation_config, name: 'CAPTAIN_OPEN_AI_MODEL', value: 'gpt-4.1-nano')
+    it 'returns the assistant feature default when Captain V2 is enabled' do
       account.enable_features!('captain_integration')
 
-      expect(dummy_instance.send(:agent_model)).to eq('gpt-5.2')
+      expect(dummy_instance.send(:agent_model)).to eq(Llm::Models.default_model_for('assistant'))
       expect(account.reload.captain_models).to be_nil
     end
 
@@ -205,11 +207,7 @@ RSpec.describe Concerns::Agentable do
     end
   end
 
-  describe '#agent_response_schema' do
-    it 'returns Captain::ResponseSchema' do
-      expect(dummy_instance.send(:agent_response_schema)).to eq(Captain::ResponseSchema)
-    end
-
+  describe 'Captain::ResponseSchema' do
     it 'defines complete structured response parts with nested citation indexes' do
       schema = Captain::ResponseSchema.new.to_json_schema
       response_parts = schema.dig('properties', 'response_parts')

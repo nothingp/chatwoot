@@ -57,6 +57,9 @@
   "BUBBLE": {
     "LABEL": "Fale conosco no chat"
   },
+  "CARD": {
+    "ALTERNATIVES": "Você também pode considerar"
+  },
   "POWERED_BY": "Desenvolvido por Chatwoot",
   "EMAIL_PLACEHOLDER": "Por favor, insira seu e-mail",
   "CHAT_PLACEHOLDER": "Digite sua mensagem",

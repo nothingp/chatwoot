@@ -57,6 +57,9 @@
   "BUBBLE": {
     "LABEL": "Napiště nám"
   },
+  "CARD": {
+    "ALTERNATIVES": "Můžete také zvážit"
+  },
   "POWERED_BY": "Powered by Chatwoot",
   "EMAIL_PLACEHOLDER": "Prosím, zadejte svůj e-mail",
   "CHAT_PLACEHOLDER": "Zde začněte psát",

@@ -18,12 +18,16 @@ class Llm::BaseAiService
     setup_temperature
   end
 
-  def chat(model: @model, temperature: @temperature)
+  def chat(model: @model, temperature: @temperature, provider_options: {})
     temperature = Llm::Models.temperature_for(model, temperature)
     llm_chat = RubyLLM.chat(model: model)
-    return llm_chat if temperature.nil?
+    llm_chat = llm_chat.with_temperature(temperature) unless temperature.nil?
 
-    llm_chat.with_temperature(temperature)
+    # RubyLLM::Chat#with_provider_options replaces the whole options hash, so the model's
+    # configured params and the caller's options have to be merged before the single call.
+    merged = Llm::Models.model_params(model).merge(provider_options)
+    llm_chat.with_provider_options(merged) if merged.any?
+    llm_chat
   end
 
   private

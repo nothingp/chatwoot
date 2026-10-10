@@ -88,6 +88,9 @@ class Captain::BaseTaskService
     chat.with_instructions(system_msg[:content]) if system_msg
     chat.with_schema(schema) if schema
 
+    provider_params = Llm::Models.model_params(model)
+    chat.with_provider_options(provider_params) if provider_params.any?
+
     if tools.any?
       tools.each { |tool| chat = chat.with_tools(tool) }
       chat.after_message { |message| record_generation(chat, message, model) }

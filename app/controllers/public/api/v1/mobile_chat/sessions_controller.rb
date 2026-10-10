@@ -1,8 +1,4 @@
-class Public::Api::V1::MobileChat::SessionsController < PublicController
-  UUID_V4 = /\A[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\z/i
-
-  rescue_from CustomExceptions::MobileChat::NotConfigured, with: :render_error_response
-
+class Public::Api::V1::MobileChat::SessionsController < Public::Api::V1::MobileChat::BaseController
   def create
     return render_bad_request('installationId must be a UUID v4') unless uuid_v4?(params[:installationId])
     return render_bad_request('anonymousProfileId must be a UUID v4') unless uuid_v4?(params[:anonymousProfileId])
@@ -17,7 +13,7 @@ class Public::Api::V1::MobileChat::SessionsController < PublicController
 
     MobileChat::ContactCredentials.sync(contact_inbox.contact, identity, session: session_attributes)
 
-    render json: session_response(MobileChat::SessionStore.create(contact_inbox: contact_inbox, inbox: inbox))
+    render json: session_response(contact_inbox, MobileChat::SessionStore.create(contact_inbox: contact_inbox, inbox: inbox))
   end
 
   private
@@ -48,15 +44,7 @@ class Public::Api::V1::MobileChat::SessionsController < PublicController
     @inbox ||= MobileChat::Config.inbox
   end
 
-  def uuid_v4?(value)
-    UUID_V4.match?(value.to_s)
-  end
-
-  def render_bad_request(message)
-    render json: { error: message }, status: :bad_request
-  end
-
-  def session_response(session_id)
+  def session_response(contact_inbox, session_id)
     {
       ok: true,
       chatUrl: "#{MobileChat::Config.frontend_url}/mobile-chat?session=#{session_id}",
@@ -67,7 +55,24 @@ class Public::Api::V1::MobileChat::SessionsController < PublicController
         conversationCookieName: 'cw_conversation',
         userCookieName: "cw_user_#{inbox.channel.website_token}"
       },
-      identityContinuity: { confirmed: false }
+      identityContinuity: identity_continuity(contact_inbox)
     }
+  end
+
+  # The client stores this key and sends it back on the next session, so it can tell a returning
+  # visitor from a fresh one -- and it will not ask for an unread count without one. Answering
+  # `confirmed: false` with no key left that badge permanently blank, because the request was never
+  # made rather than made and rejected.
+  #
+  # Derived from the contact inbox rather than stored, so the same visitor always answers the same
+  # key; the HMAC keeps it unforgeable without a second table to keep in step.
+  def identity_continuity(contact_inbox)
+    key = continuity_key(contact_inbox)
+    { confirmed: params[:identityContinuityKey].to_s == key, key: key }
+  end
+
+  def continuity_key(contact_inbox)
+    digest = OpenSSL::HMAC.digest('SHA256', Rails.application.secret_key_base, "mobile-chat-continuity:#{contact_inbox.id}")
+    "cs1_#{Base64.urlsafe_encode64(digest, padding: false)}"
   end
 end

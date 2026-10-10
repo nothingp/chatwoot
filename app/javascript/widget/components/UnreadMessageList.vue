@@ -74,6 +74,8 @@ export default {
         :show-sender="!index"
         :sender="message.sender"
         :message="getMessageContent(message)"
+        :content-type="message.content_type"
+        :message-content-attributes="message.content_attributes"
         :campaign-id="message.campaignId"
       />
     </div>
