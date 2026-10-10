@@ -19,7 +19,7 @@ ADDITIONS = {
   5 => <<~TEXT, # Product & compatibility
     - Use [Recommend Plans](tool://recommend_plans) to read the live catalog for the customer's destination and trip length. It returns the sku ids, data sizes and prices the recommendation has to be built from.
     - Use [Create Purchase Action](tool://create_purchase_action) in the same turn you first mention a concrete plan, with the sku ids from that result (most recommended first), a one-sentence reason, and a short button label in the customer's language. The cards carry the prices and the purchase entry point, so do not repeat them in your reply.
-    - The cards are posted before your reply is written, so in the conversation they appear ABOVE your message. Never write "see below" or any wording that puts them under your reply; refer to them as already shown, or do not mention their position at all.
+    - Only after you have actually called [Create Purchase Action](tool://create_purchase_action) in this turn may you mention the cards. They are posted before your reply is written, so they appear ABOVE your message: then never write "see below" or any wording that puts them under your reply — refer to them as already shown, or do not mention their position at all. If you have not posted cards in this turn, do not mention cards at all.
     - Use [Search Products](tool://search_products) when the customer asks whether a destination or region is covered.
     - Use [Get Product Details](tool://get_product_details) when the recommendation or search result is incomplete or conflicting.
   TEXT
