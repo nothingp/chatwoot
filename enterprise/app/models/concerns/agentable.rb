@@ -9,12 +9,14 @@ module Concerns::Agentable
   # that silently, which would leave the agent unable to call any tool, handoffs included.
   def agent(runtime_configuration: nil, runtime_agent_name: nil)
     model = agent_model
+    provider_params = Llm::Models.model_params(model)
     Agents::Agent.new(
       name: runtime_agent_name || agent_name,
       instructions: ->(context) { agent_instructions(context, runtime_configuration: runtime_configuration) },
       tools: agent_tools + [Captain::Tools::EmitAnswerTool.new],
       model: model,
-      temperature: Llm::Models.temperature_for(model, temperature.presence&.to_f || DEFAULT_TEMPERATURE)
+      temperature: Llm::Models.temperature_for(model, temperature.presence&.to_f || DEFAULT_TEMPERATURE),
+      **(provider_params.any? ? { params: provider_params } : {})
     )
   end
 
@@ -38,10 +40,7 @@ module Concerns::Agentable
   end
 
   def agent_model
-    route = Llm::FeatureRouter.resolve(feature: 'assistant', account: account)
-    return route[:model] if route[:source] == :account_override || account&.feature_enabled?('captain_integration')
-
-    installation_model.presence || route[:model]
+    Llm::FeatureRouter.resolve(feature: 'assistant', account: account)[:model]
   end
 
   private
@@ -73,10 +72,6 @@ module Concerns::Agentable
 
   def agent_tools
     []  # Default implementation, override if needed
-  end
-
-  def installation_model
-    InstallationConfig.find_by(name: 'CAPTAIN_OPEN_AI_MODEL')&.value
   end
 
   def format_current_time(timezone)

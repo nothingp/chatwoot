@@ -33,6 +33,12 @@ esac
 
 # docker compose 要 sudo：.env 是 root:root 600，普通用户读不到 POSTGRES_PASSWORD
 remote_compose() { ssh "$HOST" "cd $REMOTE_DIR && sudo -n docker compose $*"; }
+# 仓库里的 compose 是唯一事实来源。以前只改写服务器上那份的 image 行，其余靠人肉保持同步，
+# 结果就是改了仓库里的 compose 却不生效。现在整个文件都送过去。
+# ⚠️ 必须在 set_image_tag 之前 —— 否则刚写入的 tag 会被仓库里的 image: dev 覆盖回去。
+sync_compose() {
+  scp -q "$REPO_DIR/deploy/upstream-comparison/docker-compose.yml" "$HOST:$REMOTE_DIR/docker-compose.yml"
+}
 set_image_tag() {
   ssh "$HOST" "cd $REMOTE_DIR && sed -i 's|^\(  image: $IMAGE_REPO:\).*|\1$1|' docker-compose.yml && grep -m1 'image: $IMAGE_REPO:' docker-compose.yml"
 }
@@ -49,6 +55,7 @@ fi
 if [ "${1:-}" = "--tag" ]; then
   TAG="${2:?--tag 需要一个 tag}"
   echo "→ 切到已构建的 tag：$TAG"
+  sync_compose
   set_image_tag "$TAG"
   remote_compose "up -d"
   exit 0
@@ -78,7 +85,8 @@ if [ "${1:-}" = "--build-only" ]; then
   exit 0
 fi
 
-echo "→ 把 compose 指到 $TAG"
+echo "→ 同步 compose 并把它指到 $TAG"
+sync_compose
 set_image_tag "$TAG"
 
 echo "→ 重建容器"

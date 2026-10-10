@@ -11,8 +11,7 @@ class Captain::Llm::FaqGeneratorService < Llm::BaseAiService
 
   def generate
     response = instrument_llm_call(instrumentation_params) do
-      chat
-        .with_provider_options(response_format: { type: 'json_object' })
+      chat(provider_options: { response_format: { type: 'json_object' } })
         .with_instructions(system_prompt)
         .ask(@content)
     end

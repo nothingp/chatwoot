@@ -84,8 +84,7 @@ class Captain::Llm::ConversationFaqService < Llm::BaseAiService
     prompt = Captain::Llm::ConversationFaqPromptsService.same_faq
     faq_match_model = Llm::FeatureRouter.resolve(feature: 'conversation_faq_matching', account: conversation.account)[:model]
     response = instrument_llm_call(match_instrumentation_params(prompt, comparison, faq_match_model)) do
-      chat(model: faq_match_model)
-        .with_provider_options(response_format: { type: 'json_object' })
+      chat(model: faq_match_model, provider_options: { response_format: { type: 'json_object' } })
         .with_instructions(prompt)
         .ask(comparison.to_json)
     end
@@ -147,8 +146,7 @@ class Captain::Llm::ConversationFaqService < Llm::BaseAiService
 
   def generate
     response = instrument_llm_call(generation_instrumentation_params) do
-      chat
-        .with_provider_options(response_format: { type: 'json_object' })
+      chat(provider_options: { response_format: { type: 'json_object' } })
         .with_instructions(system_prompt)
         .ask(content)
     end

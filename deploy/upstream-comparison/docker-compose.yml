@@ -28,6 +28,17 @@ x-chatwoot-base: &chatwoot-base
   env_file: .env
   volumes:
     - storage_data:/app/storage
+    # ★ LLM 配置从宿主机挂入，换模型只要改文件 + 重启容器，不必重建镜像
+    #   （重建约 40 分钟，且跑在生产机上）。rails 和 sidekiq 都在启动时读它，
+    #   所以挂在 base 锚点上，两个服务一起生效。
+    #
+    #   源必须是服务器上的常驻路径：构建上下文（工作树）交给 daemon 后就丢弃了，
+    #   运行期的 /app/config/* 来自镜像。改这里 = 各服务的 volumes 会整体覆盖锚点，
+    #   别在 rails/sidekiq 下再写一份。
+    #
+    #   代价：这两份从此与镜像版本脱钩，上游若改结构需手动同步 —— 见 README。
+    - /opt/chatwoot-upstream/config/llm.yml:/app/config/llm.yml:ro
+    - /opt/chatwoot-upstream/config/llm_models.json:/app/config/llm_models.json:ro
   # ★ 阻断 Chatwoot 的每日订阅检查（Internal::CheckNewVersionsJob → hub.2.chatwoot.com/ping）。
   #   不通时 ChatwootHub.sync_with_hub 返回 nil，enterprise 的 update_plan_info
   #   直接 return，INSTALLATION_PRICING_PLAN 与 premium feature 都不会被重置。

@@ -25,7 +25,7 @@ class Captain::Llm::PdfProcessingService < Llm::LegacyBaseOpenAiService
         response = @client.files.upload(
           parameters: {
             file: temp_file,
-            purpose: 'assistants'
+            purpose: 'file-extract'
           }
         )
         response['id']

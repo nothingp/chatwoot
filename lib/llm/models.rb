@@ -33,6 +33,11 @@ module Llm::Models
       models[model_name.to_s]
     end
 
+    # Keys must be symbols: callers splat these into RubyLLM, which reads them by symbol.
+    def model_params(model_name)
+      model_config(model_name)&.dig('params')&.symbolize_keys || {}
+    end
+
     def provider_for(model_name)
       model_config(model_name)&.dig('provider')
     end

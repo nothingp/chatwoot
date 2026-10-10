@@ -34,5 +34,15 @@ RSpec.describe Captain::Llm::EmbeddingService, type: :service do
 
       expect(described_class.new(account_id: account.id).get_embedding('search text')).to eq([0.1, 0.2])
     end
+
+    it 'passes the model params to RubyLLM' do
+      configure_embedding_model('qwen3.7-text-embedding')
+
+      expect(RubyLLM).to receive(:embed)
+        .with('search text', model: 'qwen3.7-text-embedding', dimensions: 1536)
+        .and_return(embedding_response)
+
+      expect(described_class.new(account_id: account.id).get_embedding('search text')).to eq([0.1, 0.2])
+    end
   end
 end

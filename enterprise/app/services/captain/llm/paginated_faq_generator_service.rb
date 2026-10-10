@@ -5,6 +5,11 @@ class Captain::Llm::PaginatedFaqGeneratorService < Llm::LegacyBaseOpenAiService
   DEFAULT_PAGES_PER_CHUNK = 10
   MAX_ITERATIONS = 20 # Safety limit to prevent infinite loops
 
+  # fileid:// is silently ignored by models that do not support it: they answer from their own
+  # knowledge instead of erroring. Fail loudly rather than let invented FAQs reach the knowledge
+  # base. See the design doc §5.1.
+  FILE_REFERENCE_MODELS = %w[qwen-long].freeze
+
   attr_reader :total_pages_processed, :iterations_completed
 
   def initialize(document, options = {})
@@ -16,6 +21,11 @@ class Captain::Llm::PaginatedFaqGeneratorService < Llm::LegacyBaseOpenAiService
     @total_pages_processed = 0
     @iterations_completed = 0
     @model = Llm::FeatureRouter.resolve(feature: 'pdf_faq_generation', account: document.account)[:model]
+
+    return if FILE_REFERENCE_MODELS.include?(@model)
+
+    raise CustomExceptions::Pdf::FaqGenerationError,
+          "pdf_faq_generation requires a model that supports fileid:// references; #{@model} silently ignores file content"
   end
 
   def generate
@@ -118,25 +128,10 @@ class Captain::Llm::PaginatedFaqGeneratorService < Llm::LegacyBaseOpenAiService
       model: @model,
       response_format: { type: 'json_object' },
       messages: [
-        {
-          role: 'user',
-          content: build_user_content(start_page, end_page)
-        }
+        { role: 'system', content: "fileid://#{@document.openai_file_id}" },
+        { role: 'user', content: page_chunk_prompt(start_page, end_page) }
       ]
     }
-  end
-
-  def build_user_content(start_page, end_page)
-    [
-      {
-        type: 'file',
-        file: { file_id: @document.openai_file_id }
-      },
-      {
-        type: 'text',
-        text: page_chunk_prompt(start_page, end_page)
-      }
-    ]
   end
 
   def page_chunk_prompt(start_page, end_page)
