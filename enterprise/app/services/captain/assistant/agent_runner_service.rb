@@ -35,6 +35,7 @@ class Captain::Assistant::AgentRunnerService
     @last_run_result = runner.run(message_to_process, context: context, max_turns: 10)
     raise @last_run_result.error if @last_run_result.error
 
+    adopt_emitted_answer(@last_run_result)
     record_turn_start(@last_run_result)
     @last_run_result = rewrite_oversized_response(@last_run_result) if response_too_long?(@last_run_result)
 

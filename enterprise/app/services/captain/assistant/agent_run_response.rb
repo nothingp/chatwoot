@@ -1,6 +1,15 @@
 module Captain::Assistant::AgentRunResponse
   private
 
+  # The agent delivers its answer through the emit_answer tool call rather than through a response
+  # schema, because a schema stops a gateway that accepts `response_format` from emitting tool
+  # calls at all. Take that answer as the run's output, so the length check, the rewriter and the
+  # response assembly below all read it exactly as they read a schema-shaped output.
+  def adopt_emitted_answer(run_result)
+    emitted = run_result.context&.dig(:state, Captain::Tools::EmitAnswerTool::STATE_KEY)
+    run_result.output = emitted if emitted.present?
+  end
+
   def process_agent_result(run_result)
     Rails.logger.info "[Captain V2] Agent result: #{run_result.inspect}"
     model_output = run_result.output

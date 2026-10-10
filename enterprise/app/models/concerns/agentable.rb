@@ -3,15 +3,18 @@ module Concerns::Agentable
 
   DEFAULT_TEMPERATURE = 0.5
 
+  # No response_schema here on purpose: the answer is delivered through
+  # Captain::Tools::EmitAnswerTool instead. A schema puts `response_format` on every request,
+  # and a gateway that accepts one stops emitting tool calls while it is set -- DashScope does
+  # that silently, which would leave the agent unable to call any tool, handoffs included.
   def agent(runtime_configuration: nil, runtime_agent_name: nil)
     model = agent_model
     Agents::Agent.new(
       name: runtime_agent_name || agent_name,
       instructions: ->(context) { agent_instructions(context, runtime_configuration: runtime_configuration) },
-      tools: agent_tools,
+      tools: agent_tools + [Captain::Tools::EmitAnswerTool.new],
       model: model,
-      temperature: Llm::Models.temperature_for(model, temperature.presence&.to_f || DEFAULT_TEMPERATURE),
-      response_schema: agent_response_schema
+      temperature: Llm::Models.temperature_for(model, temperature.presence&.to_f || DEFAULT_TEMPERATURE)
     )
   end
 
@@ -74,10 +77,6 @@ module Concerns::Agentable
 
   def installation_model
     InstallationConfig.find_by(name: 'CAPTAIN_OPEN_AI_MODEL')&.value
-  end
-
-  def agent_response_schema
-    Captain::ResponseSchema
   end
 
   def format_current_time(timezone)

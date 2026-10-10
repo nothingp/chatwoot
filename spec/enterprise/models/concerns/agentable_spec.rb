@@ -49,10 +49,9 @@ RSpec.describe Concerns::Agentable do
       expect(Agents::Agent).to receive(:new).with(
         name: 'Test Agent',
         instructions: instance_of(Proc),
-        tools: [],
+        tools: [instance_of(Captain::Tools::EmitAnswerTool)],
         model: 'gpt-5-mini',
-        temperature: nil,
-        response_schema: Captain::ResponseSchema
+        temperature: nil
       )
 
       dummy_instance.agent
@@ -205,11 +204,7 @@ RSpec.describe Concerns::Agentable do
     end
   end
 
-  describe '#agent_response_schema' do
-    it 'returns Captain::ResponseSchema' do
-      expect(dummy_instance.send(:agent_response_schema)).to eq(Captain::ResponseSchema)
-    end
-
+  describe 'Captain::ResponseSchema' do
     it 'defines complete structured response parts with nested citation indexes' do
       schema = Captain::ResponseSchema.new.to_json_schema
       response_parts = schema.dig('properties', 'response_parts')
