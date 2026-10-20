@@ -63,6 +63,19 @@ class Captain::PlanRequestRouter
       text.match?(PLAN_INTENT)
     end
 
+    # A message that carries its own destination and duration can be routed
+    # without the earlier conversation. That lets the caller trim history so
+    # an earlier destination's cards cannot be mistaken for this request.
+    def self_contained?(message)
+      text = message.to_s.strip
+      return false if text.blank?
+      return false if text.match?(EXCLUDED_TERMS)
+      return false unless text.match?(DAY_OR_WEEK)
+      return false if text.match?(PAST_DURATION)
+
+      destination?(text)
+    end
+
     # The scenario that owns both plan tools. Identifying it by tools rather
     # than by title or id keeps this stable if the scenario is renamed.
     def scenario_for(assistant, message)

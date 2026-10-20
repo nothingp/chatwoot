@@ -31,6 +31,7 @@ class Captain::Assistant::AgentRunnerService
   end
 
   def generate_response(message_history: [])
+    message_history = plan_request_history(message_history)
     message_to_process, context = run_payload(message_history)
     @last_run_result = runner.run(message_to_process, context: context, max_turns: 10)
     raise @last_run_result.error if @last_run_result.error
@@ -171,6 +172,19 @@ class Captain::Assistant::AgentRunnerService
       install_instrumentation(configured_runner)
       configured_runner
     end
+  end
+
+  # A destination + duration message is self-contained. Dropping earlier
+  # turns stops the scenario agent from treating cards for a previous
+  # destination as already satisfying this request.
+  def plan_request_history(message_history)
+    return message_history if @runtime_configuration || reply_suggestion?
+
+    last_user_message = message_history.reverse.find { |message| message[:role].to_s == 'user' }
+    return message_history if last_user_message.blank?
+    return message_history unless Captain::PlanRequestRouter.self_contained?(last_user_message[:content])
+
+    [last_user_message]
   end
 
   def run_payload(message_history)

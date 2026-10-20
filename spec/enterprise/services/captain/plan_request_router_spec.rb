@@ -27,6 +27,18 @@ RSpec.describe Captain::PlanRequestRouter do
     end
   end
 
+  describe '.self_contained?' do
+    it 'is true when the message carries a destination and a duration' do
+      expect(described_class.self_contained?('Japan 7 days')).to be(true)
+      expect(described_class.self_contained?('法国 5 天')).to be(true)
+    end
+
+    it 'is false without a duration or for a past duration' do
+      expect(described_class.self_contained?('France')).to be(false)
+      expect(described_class.self_contained?('My order from 5 days ago')).to be(false)
+    end
+  end
+
   describe '.scenario_for' do
     let(:product_scenario) do
       instance_double(Captain::Scenario, tools: %w[recommend_plans create_purchase_action])

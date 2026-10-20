@@ -178,6 +178,34 @@ RSpec.describe Captain::Assistant::AgentRunnerService do
   describe '#generate_response' do
     subject(:service) { described_class.new(assistant: assistant, conversation: conversation) }
 
+    it 'trims earlier turns for a self-contained plan request' do
+      captured = nil
+      allow(mock_runner).to receive(:run) do |message, context:, **|
+        captured = [message, context]
+        mock_result
+      end
+
+      service.generate_response(
+        message_history: message_history + [{ role: 'user', content: 'Japan 7 days' }]
+      )
+
+      expect(captured.first).to eq('Japan 7 days')
+      expect(captured.last[:conversation_history]).to be_empty
+    end
+
+    it 'keeps earlier turns for a normal message' do
+      captured = nil
+      allow(mock_runner).to receive(:run) do |message, context:, **|
+        captured = [message, context]
+        mock_result
+      end
+
+      service.generate_response(message_history: message_history)
+
+      expect(captured.first).to eq('I need help with my account')
+      expect(captured.last[:conversation_history]).not_to be_empty
+    end
+
     it 'builds agents and wires them together' do
       expect(assistant).to receive(:agent).and_return(mock_agent)
       scenarios_relation = instance_double(Captain::Scenario)
