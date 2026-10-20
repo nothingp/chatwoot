@@ -1,4 +1,4 @@
-class Captain::Tools::RecommendPlanTool < Captain::Tools::MobileChatTool
+class Captain::Tools::RecommendPlansTool < Captain::Tools::MobileChatTool
   description 'Recommend eSIM plans for a destination and trip length, with prices and sku ids. ' \
               'Call this before recommending a plan, then create_purchase_action with the sku ids.'
   parameter :country_code, type: 'string', description: 'ISO 3166-1 alpha-2 destination code, e.g. JP', required: true

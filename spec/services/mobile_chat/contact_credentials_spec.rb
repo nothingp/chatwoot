@@ -4,7 +4,7 @@ RSpec.describe MobileChat::ContactCredentials do
   let(:contact) { create(:contact, account: create(:account)) }
   let(:identity) { instance_double(MobileChat::IdentityResolver::Identity, token: token) }
   let(:token) { 'member-token' }
-  let(:session) { { locale: 'zh_CN', platform: 'ios', catalog_environment: 'prod', currency: 'CNY' } }
+  let(:session) { { locale: 'zh_CN', platform: 'ios', catalog_environment: 'prod', currency: 'CNY', app_version: '1.0.37+68' } }
 
   it 'writes the app token onto the contact' do
     described_class.sync(contact, identity, session: {})
@@ -19,7 +19,8 @@ RSpec.describe MobileChat::ContactCredentials do
       'locale' => 'zh_CN',
       'platform' => 'ios',
       'catalog_environment' => 'prod',
-      'currency' => 'CNY'
+      'currency' => 'CNY',
+      'app_version' => '1.0.37+68'
     )
   end
 
@@ -42,7 +43,8 @@ RSpec.describe MobileChat::ContactCredentials do
       'locale' => 'zh_CN',
       'platform' => 'ios',
       'catalog_environment' => 'prod',
-      'currency' => 'CNY'
+      'currency' => 'CNY',
+      'app_version' => '1.0.37+68'
     )
   end
 

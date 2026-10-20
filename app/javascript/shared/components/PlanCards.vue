@@ -58,12 +58,18 @@ const primary = computed(() => cards.value[0]);
 const alternatives = computed(() => cards.value.slice(1));
 
 // CardButton.vue owns this postback protocol -- the widget sends it and the host page opens the
-// checkout from the payload, because the sandboxed iframe cannot navigate there itself. The guard
-// is CardButton's too: outside an iframe, which is where the app's WebView runs, it sends nothing
-// and the app opens the link action instead.
+// checkout from the payload, because the sandboxed iframe cannot navigate there itself. The app
+// loads the page top-level in a WebView, so it hands the same payload to the native bridge; older
+// app builds keep the link action and never reach this branch.
 const sendPostback = payload => {
   if (IFrameHelper.isIFrame()) {
     IFrameHelper.sendMessage({ event: 'postback', data: { payload } });
+    return;
+  }
+
+  const bridge = window.NovyroBridge;
+  if (bridge && typeof bridge.postMessage === 'function') {
+    bridge.postMessage(`novyro-customer-service-action:${payload}`);
   }
 };
 

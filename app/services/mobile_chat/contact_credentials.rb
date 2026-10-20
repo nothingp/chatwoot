@@ -3,7 +3,7 @@ module MobileChat::ContactCredentials
   # Client-supplied, so bounded: a hostile value must not be able to bloat the stored hash (it is
   # rendered into every Captain prompt).
   MAX_VALUE_LENGTH = 32
-  SESSION_KEYS = %i[locale platform catalog_environment currency].freeze
+  SESSION_KEYS = %i[locale platform catalog_environment currency app_version].freeze
 
   # ContactInboxWithContactBuilder does not touch an existing contact, and skips creating one
   # entirely when the verified email matches an existing contact. Refresh explicitly so later

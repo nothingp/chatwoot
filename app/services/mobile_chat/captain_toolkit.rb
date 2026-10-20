@@ -31,6 +31,9 @@ class MobileChat::CaptainToolkit
   # The platform the session recorded (MobileChat::ContactCredentials): only the website embeds the
   # widget in an iframe, and only there does the checkout have to go out as a postback.
   WEB_PLATFORM = 'web'.freeze
+  # The first app build whose WebView can consume the widget's postback. Older
+  # builds keep the link action so their buy button never becomes a dead end.
+  MIN_POSTBACK_APP_VERSION = '1.0.37'.freeze
 
   # The raw order payload also carries QR codes, full ICCIDs and internal supplier fields.
   # Whitelist instead of passing it through: this is rendered into the customer's prompt.
@@ -384,17 +387,17 @@ class MobileChat::CaptainToolkit
   end
 
   # The website embeds the widget in a sandboxed iframe, where a link cannot open the checkout at
-  # all, so the action carries the store's checkout url as a postback for the host page to open --
-  # which Chatwoot does, and only inside an iframe. The app loads the chat top-level in a WebView,
-  # where Chatwoot never emits a postback and the app intercepts the link itself, so a missing or
-  # unrecognised platform keeps that link rather than leaving the app with a dead button.
+  # all, so the action carries the store's checkout url as a postback for the host page to open.
+  # The app loads the chat top-level, so it consumes the postback through its WebView bridge --
+  # but only builds from MIN_POSTBACK_APP_VERSION know how. Older builds and sessions with no
+  # platform keep the link, which those clients already intercept themselves.
   def purchase_action(text, product_id:, sku_id:)
-    return { type: 'link', text: text, uri: app_checkout_uri(product_id, sku_id) } unless web_platform?
+    return link_action(text, product_id, sku_id) unless postback_platform?
 
     payload = JSON.generate(
       {
         type: NovyroPlanContract::NOVYRO_PLAN_POSTBACK_TYPE,
-        url: web_checkout_uri(sku_id),
+        url: web_platform? ? web_checkout_uri(sku_id) : app_checkout_uri(product_id, sku_id),
         goods_id: product_id.to_s,
         sku_id: sku_id.to_s
       }.merge(session_payload)
@@ -402,10 +405,27 @@ class MobileChat::CaptainToolkit
     { type: 'postback', text: text, payload: payload }
   end
 
+  def link_action(text, product_id, sku_id)
+    { type: 'link', text: text, uri: app_checkout_uri(product_id, sku_id) }
+  end
+
+  def postback_platform?
+    web_platform? || app_supports_postback?
+  end
+
   # Only the website embeds the widget in an iframe, and only there does the checkout have to go
   # out as a postback rather than open as a link. That is what the session's platform records.
   def web_platform?
     contact&.custom_attributes&.dig('platform') == WEB_PLATFORM
+  end
+
+  def app_supports_postback?
+    version = contact&.custom_attributes&.dig('app_version').to_s.split('+').first
+    return false if version.blank?
+
+    Gem::Version.new(version) >= Gem::Version.new(MIN_POSTBACK_APP_VERSION)
+  rescue ArgumentError
+    false
   end
 
   # The store's checkout, in the customer's language: the store picks its copy from the path, and

@@ -1,4 +1,4 @@
-class Captain::Tools::ListOrderTool < Captain::Tools::MobileChatTool
+class Captain::Tools::ListOrdersTool < Captain::Tools::MobileChatTool
   description 'List the signed-in customer\'s eSIM orders. Call this before answering anything about their orders.'
 
   def perform(tool_context, **_params)

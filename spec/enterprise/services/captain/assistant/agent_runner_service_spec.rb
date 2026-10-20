@@ -153,10 +153,58 @@ RSpec.describe Captain::Assistant::AgentRunnerService do
 
       expect(configured_assistant.instructions.call(context)).to eq('Copilot instructions')
     end
+
+    it 'starts from the product scenario when the last message is a plan request' do
+      service = described_class.new(assistant: assistant, conversation: conversation)
+      service.instance_variable_set(:@last_user_message, 'Japan 7 days')
+      allow(Captain::PlanRequestRouter).to receive(:scenario_for)
+        .with(assistant, 'Japan 7 days')
+        .and_return(scenario)
+
+      expect(service.send(:build_and_wire_agents)).to eq([mock_scenario_agent, mock_agent])
+    end
+
+    it 'keeps the assistant first when the last message is not a plan request' do
+      service = described_class.new(assistant: assistant, conversation: conversation)
+      service.instance_variable_set(:@last_user_message, 'What is an eSIM?')
+      allow(Captain::PlanRequestRouter).to receive(:scenario_for)
+        .with(assistant, 'What is an eSIM?')
+        .and_return(nil)
+
+      expect(service.send(:build_and_wire_agents)).to eq([mock_agent, mock_scenario_agent])
+    end
   end
 
   describe '#generate_response' do
     subject(:service) { described_class.new(assistant: assistant, conversation: conversation) }
+
+    it 'trims earlier turns for a self-contained plan request' do
+      captured = nil
+      allow(mock_runner).to receive(:run) do |message, context:, **|
+        captured = [message, context]
+        mock_result
+      end
+
+      service.generate_response(
+        message_history: message_history + [{ role: 'user', content: 'Japan 7 days' }]
+      )
+
+      expect(captured.first).to eq('Japan 7 days')
+      expect(captured.last[:conversation_history]).to be_empty
+    end
+
+    it 'keeps earlier turns for a normal message' do
+      captured = nil
+      allow(mock_runner).to receive(:run) do |message, context:, **|
+        captured = [message, context]
+        mock_result
+      end
+
+      service.generate_response(message_history: message_history)
+
+      expect(captured.first).to eq('I need help with my account')
+      expect(captured.last[:conversation_history]).not_to be_empty
+    end
 
     it 'builds agents and wires them together' do
       expect(assistant).to receive(:agent).and_return(mock_agent)

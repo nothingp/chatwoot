@@ -25,7 +25,8 @@ class Public::Api::V1::MobileChat::SessionsController < Public::Api::V1::MobileC
       locale: params[:locale].presence || params[:appLocale].presence,
       platform: params[:platform],
       catalog_environment: params[:catalogEnvironment],
-      currency: params[:currency]
+      currency: params[:currency],
+      app_version: params[:appVersion]
     }
   end
 

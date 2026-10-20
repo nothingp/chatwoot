@@ -31,6 +31,7 @@ class Captain::Assistant::AgentRunnerService
   end
 
   def generate_response(message_history: [])
+    message_history = plan_request_history(message_history)
     message_to_process, context = run_payload(message_history)
     @last_run_result = runner.run(message_to_process, context: context, max_turns: 10)
     raise @last_run_result.error if @last_run_result.error
@@ -126,9 +127,18 @@ class Captain::Assistant::AgentRunnerService
 
   def default_agent_graph
     assistant_agent = @assistant.agent
-    scenario_agents = @assistant.scenarios.enabled.map(&:agent)
+    scenarios = @assistant.scenarios.enabled.to_a
+    routed_scenario = Captain::PlanRequestRouter.scenario_for(@assistant, @last_user_message)
+    ordered_scenarios = routed_scenario ? [routed_scenario] + (scenarios - [routed_scenario]) : scenarios
+    scenario_agents = ordered_scenarios.map(&:agent)
 
     wire_agents(assistant_agent, scenario_agents)
+    return [assistant_agent] + scenario_agents unless routed_scenario
+
+    # Starting the runner on the product scenario removes the model's
+    # handoff decision for deterministic plan requests. The scenario can
+    # hand back to the assistant if the request turns out to be out of scope.
+    [scenario_agents.first, assistant_agent, *scenario_agents.drop(1)]
   end
 
   def wire_agents(assistant_agent, scenario_agents)
@@ -164,8 +174,22 @@ class Captain::Assistant::AgentRunnerService
     end
   end
 
+  # A destination + duration message is self-contained. Dropping earlier
+  # turns stops the scenario agent from treating cards for a previous
+  # destination as already satisfying this request.
+  def plan_request_history(message_history)
+    return message_history if @runtime_configuration || reply_suggestion?
+
+    last_user_message = message_history.reverse.find { |message| message[:role].to_s == 'user' }
+    return message_history if last_user_message.blank?
+    return message_history unless Captain::PlanRequestRouter.self_contained?(last_user_message[:content])
+
+    [last_user_message]
+  end
+
   def run_payload(message_history)
     message_to_process = extract_last_user_message(message_history)
+    @last_user_message = message_to_process
     context = build_context(message_history_without_last_user_message(message_history))
     enrich_context_with_trace_payload!(context, message_history, message_to_process)
     [message_to_process, context]

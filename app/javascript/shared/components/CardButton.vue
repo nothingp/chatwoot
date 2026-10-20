@@ -24,14 +24,26 @@ export default {
   },
   methods: {
     onClick() {
-      if (this.action.type === 'postback') {
-        // Send message to parent iframe
-        if (IFrameHelper.isIFrame()) {
-          IFrameHelper.sendMessage({
-            event: 'postback',
-            data: { payload: this.action.payload },
-          });
-        }
+      if (this.action.type !== 'postback') return;
+
+      // The website embeds the widget in an iframe and relays the postback to
+      // its host page.
+      if (IFrameHelper.isIFrame()) {
+        IFrameHelper.sendMessage({
+          event: 'postback',
+          data: { payload: this.action.payload },
+        });
+        return;
+      }
+
+      // The app loads this page top-level in a WebView. There is no parent to
+      // post to, so hand the action to the native bridge, which routes it to
+      // the app's own checkout.
+      const bridge = window.NovyroBridge;
+      if (bridge && typeof bridge.postMessage === 'function') {
+        bridge.postMessage(
+          `novyro-customer-service-action:${this.action.payload}`
+        );
       }
     },
   },
