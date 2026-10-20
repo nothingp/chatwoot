@@ -126,9 +126,18 @@ class Captain::Assistant::AgentRunnerService
 
   def default_agent_graph
     assistant_agent = @assistant.agent
-    scenario_agents = @assistant.scenarios.enabled.map(&:agent)
+    scenarios = @assistant.scenarios.enabled.to_a
+    routed_scenario = Captain::PlanRequestRouter.scenario_for(@assistant, @last_user_message)
+    ordered_scenarios = routed_scenario ? [routed_scenario] + (scenarios - [routed_scenario]) : scenarios
+    scenario_agents = ordered_scenarios.map(&:agent)
 
     wire_agents(assistant_agent, scenario_agents)
+    return [assistant_agent] + scenario_agents unless routed_scenario
+
+    # Starting the runner on the product scenario removes the model's
+    # handoff decision for deterministic plan requests. The scenario can
+    # hand back to the assistant if the request turns out to be out of scope.
+    [scenario_agents.first, assistant_agent, *scenario_agents.drop(1)]
   end
 
   def wire_agents(assistant_agent, scenario_agents)
@@ -166,6 +175,7 @@ class Captain::Assistant::AgentRunnerService
 
   def run_payload(message_history)
     message_to_process = extract_last_user_message(message_history)
+    @last_user_message = message_to_process
     context = build_context(message_history_without_last_user_message(message_history))
     enrich_context_with_trace_payload!(context, message_history, message_to_process)
     [message_to_process, context]

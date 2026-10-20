@@ -153,6 +153,26 @@ RSpec.describe Captain::Assistant::AgentRunnerService do
 
       expect(configured_assistant.instructions.call(context)).to eq('Copilot instructions')
     end
+
+    it 'starts from the product scenario when the last message is a plan request' do
+      service = described_class.new(assistant: assistant, conversation: conversation)
+      service.instance_variable_set(:@last_user_message, 'Japan 7 days')
+      allow(Captain::PlanRequestRouter).to receive(:scenario_for)
+        .with(assistant, 'Japan 7 days')
+        .and_return(scenario)
+
+      expect(service.send(:build_and_wire_agents)).to eq([mock_scenario_agent, mock_agent])
+    end
+
+    it 'keeps the assistant first when the last message is not a plan request' do
+      service = described_class.new(assistant: assistant, conversation: conversation)
+      service.instance_variable_set(:@last_user_message, 'What is an eSIM?')
+      allow(Captain::PlanRequestRouter).to receive(:scenario_for)
+        .with(assistant, 'What is an eSIM?')
+        .and_return(nil)
+
+      expect(service.send(:build_and_wire_agents)).to eq([mock_agent, mock_scenario_agent])
+    end
   end
 
   describe '#generate_response' do
