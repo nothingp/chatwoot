@@ -416,6 +416,36 @@ RSpec.describe MobileChat::CaptainToolkit do
       expect(action[:uri]).to eq('https://app.example.com/app-actions/checkout?goods_id=13&sku_id=13055&catalog_env=prod')
     end
 
+    it 'builds a postback action for an app build that supports it' do
+      app_contact = create(:contact, account: account, identifier: 'member_app_postback',
+                                     custom_attributes: { 'app_token' => 'member-token', 'locale' => 'zh_CN',
+                                                          'currency' => 'USD', 'catalog_environment' => 'prod',
+                                                          'platform' => 'ios', 'app_version' => '1.0.37+68' })
+      action = described_class.new(create(:conversation, account: account, contact: app_contact))
+                              .purchase_actions(params)[:cards].first[:actions].first
+
+      expect(action[:type]).to eq('postback')
+      expect(JSON.parse(action[:payload])).to eq(
+        'type' => 'checkout',
+        'url' => 'https://app.example.com/app-actions/checkout?goods_id=13&sku_id=13055&catalog_env=prod',
+        'goods_id' => '13',
+        'sku_id' => '13055',
+        'locale' => 'zh_CN',
+        'platform' => 'ios',
+        'catalog_environment' => 'prod',
+        'currency' => 'USD'
+      )
+    end
+
+    it 'keeps the link action for an app build older than the postback contract' do
+      app_contact = create(:contact, account: account, identifier: 'member_app_old',
+                                     custom_attributes: { 'platform' => 'ios', 'app_version' => '1.0.36+67' })
+      action = described_class.new(create(:conversation, account: account, contact: app_contact))
+                              .purchase_actions(params)[:cards].first[:actions].first
+
+      expect(action[:type]).to eq('link')
+    end
+
     # A session that recorded no platform is the app as far as this choice goes: defaulting it to a
     # postback would leave the app with a button that does nothing.
     it 'keeps the link action when the session recorded no platform' do
